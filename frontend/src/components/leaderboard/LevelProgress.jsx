@@ -11,7 +11,7 @@ export default function LevelProgress({ level, className }) {
   return (
     <div className={className}>
       <div
-        className="h-2 w-full overflow-hidden rounded-full bg-subtle"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-subtle"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -19,13 +19,11 @@ export default function LevelProgress({ level, className }) {
         aria-label={label}
       >
         <div
-          className={cn('relative h-full overflow-hidden rounded-full transition-[width] duration-1000 ease-out', style.bar)}
+          className={cn('h-full rounded-full transition-[width] duration-700 ease-out', style.bar)}
           style={{ width: `${level.next ? Math.max(4, percent) : 100}%` }}
-        >
-          <span aria-hidden="true" className="shine absolute inset-0" />
-        </div>
+        />
       </div>
-      <p className="mt-1 truncate text-[11px] font-medium text-muted">{label}</p>
+      <p className="mt-1 truncate text-[11px] text-muted">{label}</p>
     </div>
   )
 }

@@ -40,13 +40,9 @@ cookie and live updates work without any CORS setup.
 - **Leaderboard** (`/`): open to anyone with the link. Podium for the top 3 (#1 crowned in the centre), full standings with rank, ▲/▼ movement vs 7 days ago,
   level badge, progress to the next level, points and reward/penalty counts.
   Period filter: All time / This month / This week (weeks start Monday). Updates live over Socket.io.
-- **Awards** that move live with the scores: 👑 Leader, 🚀 Top climber, 🎯 Most rewards, 🛡️ Clean sheet,
-  ⚡ Next level-up, 🌱 Rising star (logic in `src/lib/awards.js`).
-- **Live feed**: the last 40 entries. Click any member (podium, row, award or feed) to open their drawer with rank,
-  points, counts, level and full history.
-- **Level road**: everyone's avatar placed on the journey from Warning to Legend.
-- **Celebrations**: numbers count up, a floating +10 / −5 appears on live changes, and a "New leader!" or
-  "Level up!" banner with confetti fires when it happens. All motion respects the OS "reduce motion" setting.
+- **Latest activity**: the last 40 entries. Click any member (podium, row, feed or level road) to open their drawer
+  with rank, points, counts, level and full history.
+- **Level road**: everyone's avatar placed on the way from Warning to Legend (all-time points).
 - Light and dark mode, and a layout that works on phones.
 
 **Admin** (`/admin` — sign in with the small **Admin** button in the top bar)
@@ -65,11 +61,11 @@ A standard sidebar dashboard:
 src/
   pages/        Leaderboard, Login (admin), NotFound, admin/{Overview, GivePoints, Members, Rules, ActivityLog, Account}
   components/   ui/ (buttons, dialogs, fields…), layout/, leaderboard/, admin/
-  hooks/        useAuth, useTheme, useSocket, useBoard (leaderboard/activity/history), useAdmin, useLiveChanges, useNow
+  hooks/        useAuth, useTheme, useSocket, useBoard (leaderboard/activity/history), useAdmin, useNow
   services/     axios instance + auth, board and admin API calls
   context/      Auth, Theme and Socket providers
   routes/       AppRoutes, RequireAdmin
-  lib/          formatting, awards, level styles, constants, query client
+  lib/          formatting, level styles, constants, query client
   index.css     design tokens (light + dark) and Tailwind theme
 ```
 
