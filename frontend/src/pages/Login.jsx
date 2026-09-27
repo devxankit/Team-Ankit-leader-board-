@@ -9,7 +9,7 @@ import { Field, TextInput } from '@/components/ui/Field'
 import { useAuth } from '@/hooks/useAuth'
 import { firstName } from '@/lib/format'
 
-const ADMIN_HOME = '/admin/points'
+const ADMIN_HOME = '/admin'
 
 const HIGHLIGHTS = [
   { icon: Trophy, text: 'Live podium and standings' },

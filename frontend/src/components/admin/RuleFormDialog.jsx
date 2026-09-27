@@ -5,8 +5,7 @@ import Dialog from '@/components/ui/Dialog'
 import { Field, SelectInput, TextInput } from '@/components/ui/Field'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useAdminAction } from '@/hooks/useAdmin'
-import { cn } from '@/lib/cn'
-import { MAX_POINTS, RULE_CATEGORIES, RULE_ICON_SUGGESTIONS } from '@/lib/constants'
+import { MAX_POINTS, RULE_CATEGORIES } from '@/lib/constants'
 import { adminService } from '@/services/adminService'
 
 const TYPE_OPTIONS = [
@@ -21,6 +20,7 @@ function RuleForm({ rule, onDone }) {
       : { label: '', type: 'reward', points: '10', category: 'Delivery', icon: '' }
   )
   const [errors, setErrors] = useState({})
+  const set = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
   const save = useAdminAction(
     (body) => (rule ? adminService.updateRule(rule.id, body) : adminService.createRule(body)),
@@ -31,8 +31,6 @@ function RuleForm({ rule, onDone }) {
       },
     }
   )
-
-  const set = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
   const onSubmit = (event) => {
     event.preventDefault()
@@ -48,7 +46,7 @@ function RuleForm({ rule, onDone }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      <Field label="Label" error={errors.label}>
+      <Field label="Rule name" error={errors.label}>
         {(id) => (
           <TextInput
             id={id}
@@ -88,51 +86,25 @@ function RuleForm({ rule, onDone }) {
             />
           )}
         </Field>
-      </div>
-
-      <Field label="Category" error={errors.category}>
-        {(id) => (
-          <SelectInput id={id} value={form.category} onChange={(event) => set('category', event.target.value)}>
-            {RULE_CATEGORIES.map((category) => (
-              <option key={category}>{category}</option>
-            ))}
-          </SelectInput>
-        )}
-      </Field>
-
-      <Field label="Icon (optional)" error={errors.icon}>
-        {(id) => (
-          <div className="space-y-2">
-            <TextInput
-              id={id}
-              value={form.icon}
-              onChange={(event) => set('icon', event.target.value)}
-              placeholder="Emoji"
-              className="w-24 text-center text-lg"
-            />
-            <div className="flex flex-wrap gap-1">
-              {RULE_ICON_SUGGESTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => set('icon', emoji)}
-                  className={cn(
-                    'grid size-9 place-items-center rounded-lg text-lg transition hover:bg-subtle',
-                    form.icon === emoji && 'bg-accent/15 ring-1 ring-accent'
-                  )}
-                  aria-label={`Use ${emoji}`}
-                >
-                  {emoji}
-                </button>
+        <Field label="Category" error={errors.category}>
+          {(id) => (
+            <SelectInput id={id} value={form.category} onChange={(event) => set('category', event.target.value)}>
+              {RULE_CATEGORIES.map((category) => (
+                <option key={category}>{category}</option>
               ))}
-            </div>
-          </div>
-        )}
-      </Field>
+            </SelectInput>
+          )}
+        </Field>
+        <Field label="Icon (optional)" error={errors.icon} hint="One emoji, e.g. ✅">
+          {(id) => (
+            <TextInput id={id} value={form.icon} onChange={(event) => set('icon', event.target.value)} maxLength={16} />
+          )}
+        </Field>
+      </div>
 
       {rule && (
         <p className="rounded-xl bg-subtle px-3 py-2.5 text-xs text-muted">
-          Changes apply to new entries only. Past entries keep the label and points they were given with.
+          Changes apply to new entries only. Past entries keep the name and points they were given with.
         </p>
       )}
 
@@ -150,12 +122,7 @@ function RuleForm({ rule, onDone }) {
 
 export default function RuleFormDialog({ open, rule, onClose }) {
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={rule ? 'Edit rule' : 'New rule'}
-      description="Rules are the reasons you give or take points."
-    >
+    <Dialog open={open} onClose={onClose} title={rule ? 'Edit rule' : 'New rule'}>
       <RuleForm rule={rule} onDone={onClose} />
     </Dialog>
   )

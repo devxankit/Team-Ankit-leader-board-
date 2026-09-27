@@ -20,4 +20,3 @@ export const NOTE_MAX_LENGTH = 140
 export const MAX_POINTS = 1000
 export const PASSWORD_MIN_LENGTH = 8
 
-export const RULE_ICON_SUGGESTIONS = ['✅', '⚡', '🏆', '🌟', '😊', '🤝', '📅', '🚀', '💡', '⏰', '❌', '🐢', '🚫', '⚠️']

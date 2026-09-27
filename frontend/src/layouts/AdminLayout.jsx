@@ -1,42 +1,62 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { CalendarDays, Gift, ListChecks, Users } from 'lucide-react'
-import { cn } from '@/lib/cn'
+import { useEffect, useState } from 'react'
+import { Link, Outlet } from 'react-router-dom'
+import { Menu } from 'lucide-react'
+import AdminSidebar from '@/components/admin/AdminSidebar'
+import Logo from '@/components/layout/Logo'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
-const TABS = [
-  { to: '/admin/points', label: 'Give points', icon: Gift },
-  { to: '/admin/rules', label: 'Rules', icon: ListChecks },
-  { to: '/admin/members', label: 'Members', icon: Users },
-  { to: '/admin/activity', label: 'Activity log', icon: CalendarDays },
-]
-
+/** Standard admin shell: fixed sidebar on desktop, slide-in menu on phones. */
 export default function AdminLayout() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  useLockBodyScroll(menuOpen)
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const onKeyDown = (event) => event.key === 'Escape' && setMenuOpen(false)
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [menuOpen])
+
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Admin panel</p>
-        <h1 className="mt-1 font-display text-4xl font-extrabold uppercase tracking-wide">Run the game</h1>
+    <div className="min-h-dvh">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line bg-surface lg:block">
+        <AdminSidebar />
+      </aside>
+
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="grid size-9 place-items-center rounded-xl text-muted transition hover:bg-subtle hover:text-ink"
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+        >
+          <Menu className="size-5" />
+        </button>
+        <Link to="/admin" aria-label="Admin overview">
+          <Logo />
+        </Link>
       </header>
 
-      <nav aria-label="Admin sections" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <div className="inline-flex min-w-full gap-1 rounded-2xl border border-line bg-subtle p-1 sm:min-w-0">
-          {TABS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition',
-                  isActive ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'
-                )
-              }
-            >
-              <Icon className="size-4" /> {label}
-            </NavLink>
-          ))}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 animate-fade-in bg-black/55"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-sheet-in border-r border-line bg-surface shadow-2xl">
+            <AdminSidebar onNavigate={() => setMenuOpen(false)} />
+          </aside>
         </div>
-      </nav>
+      )}
 
-      <Outlet />
+      <main className="lg:pl-64">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+          <Outlet />
+        </div>
+      </main>
     </div>
   )
 }
