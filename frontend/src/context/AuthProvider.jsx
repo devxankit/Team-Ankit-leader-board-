@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Restore the session from the httpOnly cookie on first load.
+  // Restore the admin session from the httpOnly cookie. Visitors get user: null.
   useEffect(() => {
     let cancelled = false
     authService
@@ -23,13 +23,9 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Any request that finds the session gone (expired, deactivated, password reset) signs us out.
+  // An admin request that finds the session gone (expired or password changed) signs the admin out.
   useEffect(() => {
     onSessionLost((error) => {
-      if (error.code === 'PASSWORD_CHANGE_REQUIRED') {
-        setUser((current) => (current ? { ...current, mustChangePassword: true } : current))
-        return
-      }
       setUser(null)
       queryClient.clear()
       toast.error(error.message, { id: 'session-lost' })

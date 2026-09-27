@@ -9,8 +9,6 @@ export const adminService = {
   updateMember: (id, body) => http.patch(`/admin/members/${id}`, body).then((res) => res.data.member),
   setMemberStatus: (id, isActive) =>
     http.patch(`/admin/members/${id}/status`, { isActive }).then((res) => res.data.member),
-  resetPassword: (id, password) =>
-    http.post(`/admin/members/${id}/reset-password`, { password }).then((res) => res.data.member),
 
   rules: (status = 'active') => http.get('/admin/rules', { params: { status } }).then((res) => res.data.items),
   createRule: (body) => http.post('/admin/rules', body).then((res) => res.data.rule),

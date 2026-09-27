@@ -1,7 +1,7 @@
 # TA backend — API
 
 Express 5 + MongoDB (Mongoose) + Socket.io API for **TA (Team Ankit)**, the team performance leaderboard.
-Members see a live leaderboard. The admin manages members, rules and points.
+Anyone with the link sees the live leaderboard — teammates never sign in. Only the admin signs in, to manage members, rules and points.
 
 The web app lives in [`../frontend`](../frontend/README.md).
 
@@ -23,11 +23,11 @@ Then start the frontend (`cd frontend && npm run dev`) and open http://localhost
 | `npm start` | API for production |
 | `npm run seed` | Admin from `ADMIN_*` + starter rules. Never overwrites existing data |
 | `npm run seed -- --reset-admin-password` | Also resets the admin password to `ADMIN_PASSWORD` |
-| `npm run seed:demo` | Adds 8 demo members (password `Demo@12345`) with ~6 weeks of history |
+| `npm run seed:demo` | Adds 8 demo members (marked `isDemo`) with ~6 weeks of history |
 | `npm run seed:demo -- --reset` | Deletes the demo members and their entries, then recreates them |
 | `npm test` | Unit + API tests on a throwaway in-memory MongoDB (never touches your database) |
 
-To remove the demo members for good, deactivate them in **Admin → Members**, or delete the `@example.com` users from the database.
+To remove the demo members for good, deactivate them in **Admin → Members** (they show a *Demo* badge), or delete the users with `isDemo: true` from the database.
 
 ## Environment (`.env`)
 
@@ -60,18 +60,17 @@ All routes are under `/api`. Every response is `{ success, data, message }`. Err
 
 | Method & path | Access | Purpose |
 | --- | --- | --- |
-| `POST /auth/login` | public, rate-limited | Sets the httpOnly `ta_session` cookie |
+| `POST /auth/login` | public, rate-limited | Admin sign-in; sets the httpOnly `ta_session` cookie |
 | `POST /auth/logout` | anyone | Clears the cookie |
-| `GET /auth/me` | signed in | Current user |
-| `POST /auth/change-password` | signed in | Own password; required first when on a temporary password |
-| `GET /leaderboard?period=all\|month\|week` | member | Ranked rows with points, level, trend, 🔥 |
-| `GET /activity?limit=40` | member | Latest non-reversed entries |
-| `GET /members/:id/history?page=` | member | One member's entries, paginated |
+| `GET /auth/me` | anyone | The signed-in admin, or `user: null` for visitors |
+| `POST /auth/change-password` | admin | Change the admin password (signs out other devices) |
+| `GET /leaderboard?period=all\|month\|week` | public | Ranked rows with points, level, trend, 🔥 |
+| `GET /activity?limit=40` | public | Latest non-reversed entries |
+| `GET /members/:id/history?page=` | public | One member's entries, paginated |
 | `GET /admin/members?status=active\|inactive\|all` | admin | List members |
-| `POST /admin/members` | admin | Add member (name, email, designation, temporary password) |
-| `PATCH /admin/members/:id` | admin | Edit name, email, designation, avatar colour |
+| `POST /admin/members` | admin | Add member: `{ name, designation, avatarColor? }` — no account needed |
+| `PATCH /admin/members/:id` | admin | Edit name, designation, avatar colour |
 | `PATCH /admin/members/:id/status` | admin | `{ isActive }` — deactivate / reactivate |
-| `POST /admin/members/:id/reset-password` | admin | New temporary password; signs them out everywhere |
 | `GET /admin/rules?status=active\|archived\|all` | admin | List rules |
 | `POST /admin/rules` | admin | `{ label, type: reward\|penalty, points, category, icon }` |
 | `PATCH /admin/rules/:id` | admin | Edit, or restore with `{ isActive: true }` |
@@ -82,14 +81,16 @@ All routes are under `/api`. Every response is `{ success, data, message }`. Err
 | `GET /health` | public | Liveness + database status |
 
 **Real-time:** after any change that affects scores (points, reverse, member added/edited/deactivated) the server emits
-`leaderboard:updated` `{ reason, at }` over Socket.io. Clients refetch what they're viewing. Socket connections
-authenticate with the same session cookie.
+`leaderboard:updated` `{ reason, at }` over Socket.io. Every open leaderboard refetches what it's showing.
+Sockets are public like the board, but only our own site (or `CLIENT_URL`) may connect.
 
 ## Security
 
-- JWT in an httpOnly, SameSite=Lax cookie (Secure in production). Passwords hashed with bcrypt.
-- Every request re-checks the user, so deactivation and password resets end sessions immediately.
-- Role checks run on the server (`requireAdmin` on the whole `/admin` router), not just in the UI.
+- The leaderboard, activity feed and member history are read-only and public. Everything that changes data is under `/admin`.
+- Only the admin can sign in: JWT in an httpOnly, SameSite=Lax cookie (Secure in production), password hashed with bcrypt.
+  Teammates have no email or password at all.
+- Every admin request re-checks the account, so a password change ends other sessions immediately.
+- `requireAuth` + `requireAdmin` guard the whole `/admin` router on the server, not just in the UI.
 - Zod validation on every write and query, helmet, CORS allow-list, origin check on writes (CSRF), rate limits on login and the API.
 
 ## Structure

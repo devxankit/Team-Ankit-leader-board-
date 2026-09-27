@@ -2,7 +2,6 @@
  * Reusable seeding steps. The CLI entry points (seed.js, seed-demo.js,
  * dev-memory.js) connect to a database and call these.
  */
-import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import { DateTime } from 'luxon'
 import { AVATAR_COLORS, PASSWORD_MIN_LENGTH, ROLES } from '../config/constants.js'
@@ -51,7 +50,6 @@ export async function seedAdmin({ name, email, password }, { resetPassword = fal
     }
     if (resetPassword) {
       await existing.setPassword(password)
-      existing.mustChangePassword = false
       notes.push('password reset from ADMIN_PASSWORD')
     }
     await existing.save()
@@ -79,9 +77,13 @@ export async function seedStarterRules({ log = console.log } = {}) {
   log(`✓ Starter rules: ${created} created, ${STARTER_RULES.length - created} already present`)
 }
 
-// ── Demo team ──────────────────────────────────────────────────────────────
+/** Brings every collection's indexes in line with the schemas (safe to re-run). */
+export async function syncIndexes({ log = console.log } = {}) {
+  for (const model of [User, Rule, PointEvent]) await model.syncIndexes()
+  log('✓ Indexes in sync')
+}
 
-export const DEMO_PASSWORD = 'Demo@12345'
+// ── Demo team ──────────────────────────────────────────────────────────────
 
 /**
  * `skill` is the chance a given entry is a reward. `hotStreak` members get no
@@ -89,14 +91,14 @@ export const DEMO_PASSWORD = 'Demo@12345'
  * last week (they climb ▲), and `joinedDaysAgo` makes someone NEW.
  */
 const DEMO_MEMBERS = [
-  { name: 'Priya Sharma', email: 'priya@example.com', designation: 'MERN Developer', skill: 0.86, hotStreak: true },
-  { name: 'Rahul Verma', email: 'rahul@example.com', designation: 'Backend Developer', skill: 0.78 },
-  { name: 'Sneha Patel', email: 'sneha@example.com', designation: 'UI/UX Designer', skill: 0.8, hotStreak: true },
-  { name: 'Arjun Mehta', email: 'arjun@example.com', designation: 'Frontend Developer', skill: 0.66, surge: true },
-  { name: 'Kavya Iyer', email: 'kavya@example.com', designation: 'QA Engineer', skill: 0.7 },
-  { name: 'Rohan Gupta', email: 'rohan@example.com', designation: 'DevOps Engineer', skill: 0.6 },
-  { name: 'Ananya Singh', email: 'ananya@example.com', designation: 'Project Coordinator', skill: 0.4 },
-  { name: 'Vikram Nair', email: 'vikram@example.com', designation: 'MERN Developer (Intern)', skill: 0.75, joinedDaysAgo: 3 },
+  { name: 'Priya Sharma', designation: 'MERN Developer', skill: 0.86, hotStreak: true },
+  { name: 'Rahul Verma', designation: 'Backend Developer', skill: 0.78 },
+  { name: 'Sneha Patel', designation: 'UI/UX Designer', skill: 0.8, hotStreak: true },
+  { name: 'Arjun Mehta', designation: 'Frontend Developer', skill: 0.66, surge: true },
+  { name: 'Kavya Iyer', designation: 'QA Engineer', skill: 0.7 },
+  { name: 'Rohan Gupta', designation: 'DevOps Engineer', skill: 0.6 },
+  { name: 'Ananya Singh', designation: 'Project Coordinator', skill: 0.4 },
+  { name: 'Vikram Nair', designation: 'MERN Developer (Intern)', skill: 0.75, joinedDaysAgo: 3 },
 ]
 
 const REWARD_WEIGHTS = {
@@ -154,12 +156,11 @@ function weightedPick(random, weights) {
  * Creates eight demo members and ~6 weeks of believable history so the podium,
  * trends, levels and 🔥 badges have something to show. Safe to re-run: members
  * are only created once and history is only generated for members without any.
+ * `reset` deletes every demo member (isDemo) and their entries first.
  */
 export async function seedDemoTeam({ admin, reset = false, now = new Date(), log = console.log }) {
-  const emails = DEMO_MEMBERS.map((member) => member.email)
-
   if (reset) {
-    const existing = await User.find({ email: { $in: emails } }).distinct('_id')
+    const existing = await User.find({ isDemo: true }).distinct('_id')
     const { deletedCount } = await PointEvent.deleteMany({ member: { $in: existing } })
     await User.deleteMany({ _id: { $in: existing } })
     log(`✓ Removed ${existing.length} demo members and ${deletedCount} of their entries`)
@@ -171,21 +172,18 @@ export async function seedDemoTeam({ admin, reset = false, now = new Date(), log
 
   const zone = env.timezone
   const today = DateTime.fromJSDate(now, { zone }).startOf('day')
-  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, env.bcryptRounds)
 
   const members = []
   for (const [index, demo] of DEMO_MEMBERS.entries()) {
-    let member = await User.findOne({ email: demo.email })
+    let member = await User.findOne({ isDemo: true, name: demo.name })
     if (!member) {
       const joined = today.minus({ days: demo.joinedDaysAgo ?? 60 }).set({ hour: 10 }).toJSDate()
       member = await User.create({
         name: demo.name,
-        email: demo.email,
         designation: demo.designation,
         role: ROLES.MEMBER,
         avatarColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
-        passwordHash,
-        passwordChangedAt: joined,
+        isDemo: true,
         createdAt: joined,
       })
     }
@@ -259,6 +257,6 @@ export async function seedDemoTeam({ admin, reset = false, now = new Date(), log
     }
   }
 
-  log(`✓ Demo team: ${members.length} members (password ${DEMO_PASSWORD}), ${events.length} history entries generated`)
+  log(`✓ Demo team: ${members.length} members, ${events.length} history entries generated`)
   return members.map(({ member }) => member)
 }

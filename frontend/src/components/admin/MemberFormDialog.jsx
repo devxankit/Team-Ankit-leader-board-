@@ -5,18 +5,16 @@ import Button from '@/components/ui/Button'
 import Dialog from '@/components/ui/Dialog'
 import { Field, TextInput } from '@/components/ui/Field'
 import { useAdminAction } from '@/hooks/useAdmin'
-import { copyToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/cn'
 import { AVATAR_COLORS } from '@/lib/constants'
-import { generatePassword } from '@/lib/password'
 import { adminService } from '@/services/adminService'
-import PasswordField from './PasswordField'
 
+/** Teammates have no account — just a name, designation and avatar colour. */
 function MemberForm({ member, onDone }) {
   const [form, setForm] = useState(() =>
     member
-      ? { name: member.name, email: member.email, designation: member.designation, avatarColor: member.avatarColor }
-      : { name: '', email: '', designation: '', password: generatePassword(), avatarColor: '' }
+      ? { name: member.name, designation: member.designation, avatarColor: member.avatarColor }
+      : { name: '', designation: '', avatarColor: '' }
   )
   const [errors, setErrors] = useState({})
   const set = (field, value) => setForm((current) => ({ ...current, [field]: value }))
@@ -25,15 +23,7 @@ function MemberForm({ member, onDone }) {
     (body) => (member ? adminService.updateMember(member.id, body) : adminService.createMember(body)),
     {
       onSuccess: (saved) => {
-        if (member) {
-          toast.success(`${saved.name} updated`)
-        } else {
-          toast.success(`${saved.name} added to the team`, {
-            description: `Temporary password: ${form.password}`,
-            duration: 15000,
-            action: { label: 'Copy', onClick: () => copyToClipboard(form.password, 'Password copied') },
-          })
-        }
+        toast.success(member ? `${saved.name} updated` : `${saved.name} added to the leaderboard`)
         onDone()
       },
     }
@@ -43,10 +33,8 @@ function MemberForm({ member, onDone }) {
     event.preventDefault()
     const body = {
       name: form.name.trim(),
-      email: form.email.trim(),
       designation: form.designation.trim(),
       ...(form.avatarColor ? { avatarColor: form.avatarColor } : {}),
-      ...(member ? {} : { password: form.password }),
     }
     save.mutate(body, { onError: (error) => setErrors(error.fieldErrors ?? {}) })
   }
@@ -65,18 +53,6 @@ function MemberForm({ member, onDone }) {
           />
         )}
       </Field>
-      <Field label="Email" error={errors.email}>
-        {(id) => (
-          <TextInput
-            id={id}
-            type="email"
-            value={form.email}
-            onChange={(event) => set('email', event.target.value)}
-            placeholder="priya@company.com"
-            error={errors.email}
-          />
-        )}
-      </Field>
       <Field label="Designation" error={errors.designation}>
         {(id) => (
           <TextInput
@@ -89,11 +65,11 @@ function MemberForm({ member, onDone }) {
         )}
       </Field>
 
-      {!member && (
-        <PasswordField value={form.password} onChange={(value) => set('password', value)} error={errors.password} />
-      )}
-
-      <Field label="Avatar colour" error={errors.avatarColor} hint={member ? undefined : 'Leave unselected to pick automatically.'}>
+      <Field
+        label="Avatar colour"
+        error={errors.avatarColor}
+        hint={member ? undefined : 'Leave unselected to pick one automatically.'}
+      >
         {() => (
           <div className="flex flex-wrap gap-2">
             {AVATAR_COLORS.map((color) => (
@@ -134,7 +110,7 @@ export default function MemberFormDialog({ open, member, onClose }) {
       open={open}
       onClose={onClose}
       title={member ? `Edit ${member.name}` : 'Add a team member'}
-      description={member ? undefined : "They'll sign in with this email and the temporary password."}
+      description={member ? undefined : 'They appear on the public leaderboard right away — no account needed.'}
     >
       <MemberForm member={member} onDone={onClose} />
     </Dialog>

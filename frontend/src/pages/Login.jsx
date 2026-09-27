@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Flame, Trophy, Zap } from 'lucide-react'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Flame, Trophy, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import Logo from '@/components/layout/Logo'
 import ThemeToggle from '@/components/layout/ThemeToggle'
@@ -9,7 +9,7 @@ import { Field, TextInput } from '@/components/ui/Field'
 import { useAuth } from '@/hooks/useAuth'
 import { firstName } from '@/lib/format'
 
-const homeFor = (user) => (user.role === 'admin' ? '/admin/points' : '/')
+const ADMIN_HOME = '/admin/points'
 
 const HIGHLIGHTS = [
   { icon: Trophy, text: 'Live podium and standings' },
@@ -26,7 +26,7 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (user) return <Navigate to={location.state?.from ?? homeFor(user)} replace />
+  if (user) return <Navigate to={location.state?.from ?? ADMIN_HOME} replace />
 
   const onSubmit = async (event) => {
     event.preventDefault()
@@ -35,7 +35,7 @@ export default function Login() {
     try {
       const signedIn = await login(email, password)
       toast.success(`Welcome back, ${firstName(signedIn.name)}!`)
-      navigate(location.state?.from ?? homeFor(signedIn), { replace: true })
+      navigate(location.state?.from ?? ADMIN_HOME, { replace: true })
     } catch (loginError) {
       setError(loginError)
     } finally {
@@ -80,8 +80,8 @@ export default function Login() {
         </div>
 
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
-          <h2 className="font-display text-4xl font-extrabold uppercase tracking-wide">Sign in</h2>
-          <p className="mt-1 text-sm text-muted">Use the email and password your admin gave you.</p>
+          <h2 className="font-display text-4xl font-extrabold uppercase tracking-wide">Admin sign in</h2>
+          <p className="mt-1 text-sm text-muted">Only the admin signs in. The leaderboard is open to everyone — no account needed.</p>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4" noValidate>
             <Field label="Email" error={error?.fieldErrors?.email}>
@@ -123,7 +123,9 @@ export default function Login() {
               Sign in
             </Button>
           </form>
-          <p className="mt-6 text-center text-xs text-muted">Forgot your password? Ask your admin to reset it.</p>
+          <Link to="/" className="mt-6 inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-muted hover:text-ink">
+            <ArrowLeft className="size-4" /> Back to the leaderboard
+          </Link>
         </div>
       </main>
     </div>

@@ -36,33 +36,32 @@ cookie and live updates work without any CORS setup.
 
 ## What's inside
 
-**For everyone**
-- **Leaderboard** (`/`): podium for the top 3 (#1 crowned in the centre), full standings with rank, ▲/▼ movement vs 7 days ago,
-  level badge, progress to the next level, points and reward/penalty counts. Your own row is highlighted.
+**For everyone — no login**
+- **Leaderboard** (`/`): open to anyone with the link. Podium for the top 3 (#1 crowned in the centre), full standings with rank, ▲/▼ movement vs 7 days ago,
+  level badge, progress to the next level, points and reward/penalty counts.
   Period filter: All time / This month / This week (weeks start Monday). Updates live over Socket.io.
 - **Latest activity**: the last 40 entries. Click any member (podium, row or feed) to open their drawer with rank,
   points, counts, level and full history.
-- **My profile** (`/me`): your stats and history.
-- Light and dark mode, and a phone layout with a bottom tab bar.
+- Light and dark mode, and a layout that works on phones.
 
-**Admin** (`/admin`)
+**Admin** (`/admin` — sign in with the small **Admin** button in the top bar)
 - **Give points**: pick people (or everyone), pick a rule (green rewards, red penalties) or a custom one-off, add a note, apply.
 - **Rules**: create, edit, archive and restore.
-- **Members**: add (with a generated temporary password), edit, reset password, deactivate/reactivate.
+- **Members**: add (just name, designation and avatar colour — teammates have no account), edit, deactivate/reactivate.
 - **Activity log**: every entry with filters (member, rule, type, status, dates) and **Reverse**.
 
-Members on a temporary password must choose their own at first sign-in. Anyone can change theirs from the account menu.
+Only the admin signs in. Change the admin password from the account menu.
 
 ## Structure
 
 ```
 src/
-  pages/        Leaderboard, MyProfile, Login, ChangePassword, NotFound, admin/*
+  pages/        Leaderboard, Login (admin), ChangePassword (admin), NotFound, admin/*
   components/   ui/ (buttons, dialogs, fields…), layout/, leaderboard/, admin/
   hooks/        useAuth, useTheme, useSocket, useBoard (leaderboard/activity/history), useAdmin, useNow
   services/     axios instance + auth, board and admin API calls
   context/      Auth, Theme and Socket providers
-  routes/       AppRoutes, RequireAuth, RequireAdmin
+  routes/       AppRoutes, RequireAdmin
   lib/          formatting, level styles, constants, query client
   index.css     design tokens (light + dark) and Tailwind theme
 ```

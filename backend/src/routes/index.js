@@ -11,7 +11,8 @@ const router = Router()
 router.get('/health', health)
 router.use('/auth', authRoutes)
 router.use('/admin', requireAuth, requireAdmin, adminRoutes)
-router.use(requireAuth, boardRoutes)
+// Public: anyone with the link can see the leaderboard, activity and history.
+router.use(boardRoutes)
 router.use(notFound)
 
 export default router

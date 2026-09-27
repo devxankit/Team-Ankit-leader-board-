@@ -1,11 +1,7 @@
-import { CircleUserRound, Shield, Trophy } from 'lucide-react'
+import { Shield, Trophy } from 'lucide-react'
 
-const NAV_ITEMS = [
+/** Only the signed-in admin needs navigation; visitors just see the leaderboard. */
+export const ADMIN_NAV_ITEMS = [
   { to: '/', label: 'Leaderboard', icon: Trophy, end: true },
-  { to: '/me', label: 'My profile', icon: CircleUserRound, memberOnly: true },
-  { to: '/admin', label: 'Admin', icon: Shield, adminOnly: true },
+  { to: '/admin', label: 'Admin', icon: Shield },
 ]
-
-/** Admins aren't ranked, so they get Admin instead of My profile. */
-export const navItemsFor = (isAdmin) =>
-  NAV_ITEMS.filter((item) => (isAdmin ? !item.memberOnly : !item.adminOnly))

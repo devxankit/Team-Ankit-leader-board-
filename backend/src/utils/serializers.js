@@ -1,9 +1,6 @@
 import { pointsType } from './points.js'
 
-/**
- * Shapes database documents into API responses. Member-facing shapes never
- * include email addresses; admin shapes add the fields the panel needs.
- */
+/** Shapes database documents into API responses. */
 
 const idOf = (value) => {
   const id = value?._id ?? value
@@ -23,22 +20,16 @@ export function toPublicMember(user) {
   }
 }
 
+/** The signed-in admin. */
 export function toSessionUser(user) {
-  return {
-    ...toPublicMember(user),
-    email: user.email,
-    role: user.role,
-    mustChangePassword: Boolean(user.mustChangePassword),
-  }
+  return { ...toPublicMember(user), email: user.email, role: user.role }
 }
 
 export function toAdminMember(user) {
   return {
     ...toPublicMember(user),
-    email: user.email,
     isActive: user.isActive,
-    mustChangePassword: Boolean(user.mustChangePassword),
-    passwordChangedAt: user.passwordChangedAt ?? null,
+    isDemo: Boolean(user.isDemo),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   }

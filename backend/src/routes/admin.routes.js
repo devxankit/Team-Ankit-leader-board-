@@ -11,7 +11,6 @@ import {
   listMembersQuery,
   listRulesQuery,
   memberStatusBody,
-  resetPasswordBody,
   updateMemberBody,
   updateRuleBody,
 } from '../validation/admin.schemas.js'
@@ -24,11 +23,6 @@ router.get('/members', validate({ query: listMembersQuery }), members.list)
 router.post('/members', validate({ body: createMemberBody }), members.create)
 router.patch('/members/:id', validate({ params: idParams, body: updateMemberBody }), members.update)
 router.patch('/members/:id/status', validate({ params: idParams, body: memberStatusBody }), members.setStatus)
-router.post(
-  '/members/:id/reset-password',
-  validate({ params: idParams, body: resetPasswordBody }),
-  members.resetPassword
-)
 
 router.get('/rules', validate({ query: listRulesQuery }), rules.list)
 router.post('/rules', validate({ body: createRuleBody }), rules.create)

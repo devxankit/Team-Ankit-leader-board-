@@ -1,19 +1,16 @@
 import { NavLink } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/cn'
-import { navItemsFor } from '@/lib/navigation'
+import { ADMIN_NAV_ITEMS } from '@/lib/navigation'
 
-/** Phone-only tab bar — the team mostly checks the board on their phones. */
+/** Phone-only tab bar for the signed-in admin (visitors only have the one page). */
 export default function BottomNav() {
-  const { isAdmin } = useAuth()
-
   return (
     <nav
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg sm:hidden"
     >
       <div className="flex">
-        {navItemsFor(isAdmin).map(({ to, label, icon: Icon, end }) => (
+        {ADMIN_NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

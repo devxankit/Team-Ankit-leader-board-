@@ -10,9 +10,7 @@ import {
 import {
   atLeastOneField,
   blankAsMissing,
-  email,
   limitParam,
-  newPassword,
   objectId,
   pageParam,
   requiredText,
@@ -37,18 +35,16 @@ export const listMembersQuery = z.object({
   status: blankAsMissing(z.enum(['active', 'inactive', 'all']).default('all')),
 })
 
+/** Teammates don't sign in, so a member is just a name, designation and colour. */
 export const createMemberBody = z.object({
   name: personName,
-  email,
   designation: designation.default(''),
-  password: newPassword,
   avatarColor: avatarColor.optional(),
 })
 
 export const updateMemberBody = atLeastOneField(
   z.object({
     name: personName.optional(),
-    email: email.optional(),
     designation: designation.optional(),
     avatarColor: avatarColor.optional(),
   })
@@ -57,8 +53,6 @@ export const updateMemberBody = atLeastOneField(
 export const memberStatusBody = z.object({
   isActive: z.boolean({ error: 'isActive must be true or false' }),
 })
-
-export const resetPasswordBody = z.object({ password: newPassword })
 
 // ── Rules ──────────────────────────────────────────────────────────────────
 

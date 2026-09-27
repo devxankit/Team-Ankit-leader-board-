@@ -6,11 +6,12 @@
  */
 import { connectDB, disconnectDB } from '../config/db.js'
 import { assertEnv, env } from '../config/env.js'
-import { seedAdmin, seedStarterRules } from './seeders.js'
+import { seedAdmin, seedStarterRules, syncIndexes } from './seeders.js'
 
 try {
   assertEnv(['MONGODB_URI', 'ADMIN_EMAIL', 'ADMIN_PASSWORD'])
   await connectDB()
+  await syncIndexes()
   await seedAdmin(env.admin, { resetPassword: process.argv.includes('--reset-admin-password') })
   await seedStarterRules()
   console.log('🌱 Seed complete.')

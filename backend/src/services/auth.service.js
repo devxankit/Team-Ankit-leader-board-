@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { ROLES } from '../config/constants.js'
 import { env } from '../config/env.js'
 import User from '../models/User.js'
 import { ApiError } from '../utils/ApiError.js'
@@ -18,8 +19,9 @@ export function signSessionToken(user) {
 }
 
 /**
- * Resolves a session token to a live user, re-checking the database on every
- * call so deactivation and password resets take effect immediately.
+ * Resolves a session token to the signed-in admin, re-checking the database on
+ * every call so deactivation and password changes take effect immediately.
+ * Only the admin can hold a session — the leaderboard itself is public.
  */
 export async function authenticateToken(token) {
   let payload
@@ -30,14 +32,11 @@ export async function authenticateToken(token) {
   }
 
   const user = await User.findById(payload.sub).lean()
-  if (!user) {
-    throw ApiError.unauthorized('This account no longer exists.', 'SESSION_INVALID')
+  if (!user || user.role !== ROLES.ADMIN) {
+    throw ApiError.unauthorized('This session is no longer valid. Please sign in again.', 'SESSION_INVALID')
   }
   if (!user.isActive) {
-    throw ApiError.unauthorized(
-      'Your account has been deactivated. Contact your admin.',
-      'ACCOUNT_DEACTIVATED'
-    )
+    throw ApiError.unauthorized('This account has been deactivated.', 'ACCOUNT_DEACTIVATED')
   }
 
   // JWT `iat` has one-second resolution, so compare whole seconds.
@@ -50,7 +49,7 @@ export async function authenticateToken(token) {
 }
 
 export async function loginWithPassword(email, password) {
-  const user = await User.findOne({ email }).select('+passwordHash')
+  const user = await User.findOne({ email, role: ROLES.ADMIN }).select('+passwordHash')
 
   if (!user) {
     await bcrypt.compare(password, await getDummyHash())
@@ -61,12 +60,8 @@ export async function loginWithPassword(email, password) {
     throw ApiError.unauthorized('Incorrect email or password.', 'INVALID_CREDENTIALS')
   }
 
-  // Only revealed after the password checks out, so it leaks nothing to strangers.
   if (!user.isActive) {
-    throw ApiError.forbidden(
-      'Your account has been deactivated. Contact your admin.',
-      'ACCOUNT_DEACTIVATED'
-    )
+    throw ApiError.forbidden('This account has been deactivated.', 'ACCOUNT_DEACTIVATED')
   }
 
   return user
@@ -84,7 +79,6 @@ export async function changeOwnPassword(userId, currentPassword, newPassword) {
   }
 
   await user.setPassword(newPassword)
-  user.mustChangePassword = false
   await user.save()
   return user
 }

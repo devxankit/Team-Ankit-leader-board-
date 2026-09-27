@@ -2,18 +2,25 @@ import jwt from 'jsonwebtoken'
 import request from 'supertest'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import app from '../src/app.js'
-import { resetMemberPassword, setMemberStatus } from '../src/services/member.service.js'
+import { changeOwnPassword } from '../src/services/auth.service.js'
 import { clearTestDb, connectTestDb, disconnectTestDb } from './helpers/db.js'
 import { createAdmin, createUser, TEST_PASSWORD } from './helpers/factories.js'
 
 let admin
 let member
 
-async function signIn(user) {
-  const res = await request(app).post('/api/auth/login').send({ email: user.email, password: TEST_PASSWORD })
+const sessionCookie = (res) => res.headers['set-cookie'].find((cookie) => cookie.startsWith('ta_session='))
+
+async function signInAsAdmin() {
+  const res = await request(app).post('/api/auth/login').send({ email: 'admin@test.dev', password: TEST_PASSWORD })
   expect(res.status).toBe(200)
-  return res.headers['set-cookie'].find((cookie) => cookie.startsWith('ta_session=')).split(';')[0]
+  return sessionCookie(res).split(';')[0]
 }
+
+const tokenFor = (user, secondsAgo = 0) =>
+  jwt.sign({ sub: String(user._id), role: user.role, iat: Math.floor(Date.now() / 1000) - secondsAgo }, process.env.JWT_SECRET, {
+    expiresIn: '7d',
+  })
 
 beforeAll(connectTestDb)
 afterAll(disconnectTestDb)
@@ -21,98 +28,88 @@ afterAll(disconnectTestDb)
 beforeEach(async () => {
   await clearTestDb()
   admin = await createAdmin({ email: 'admin@test.dev' })
-  member = await createUser({ name: 'Asha', email: 'asha@test.dev' })
+  member = await createUser({ name: 'Asha' })
 })
 
-describe('auth', () => {
-  it('signs in with an httpOnly session cookie and the standard envelope', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'ASHA@test.dev', password: TEST_PASSWORD })
+describe('public board', () => {
+  it('shows the leaderboard, activity and history without signing in', async () => {
+    for (const path of ['/api/leaderboard?period=week', '/api/activity', `/api/members/${member._id}/history`]) {
+      const res = await request(app).get(path)
+      expect(res.status, path).toBe(200)
+      expect(res.body.success).toBe(true)
+    }
+  })
+
+  it('answers "who am I" with null for visitors instead of an error', async () => {
+    const res = await request(app).get('/api/auth/me')
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ user: null })
+  })
+
+  it('keeps every admin endpoint closed to visitors', async () => {
+    const attempts = [
+      request(app).get('/api/admin/members'),
+      request(app).post('/api/admin/points').send({ memberIds: [String(member._id)], custom: { label: 'Hack', points: 999 } }),
+      request(app).post('/api/admin/rules').send({ label: 'Free points', type: 'reward', points: 100 }),
+      request(app).patch(`/api/admin/events/${String(member._id)}/void`),
+    ]
+    for (const res of await Promise.all(attempts)) {
+      expect(res.status).toBe(401)
+      expect(res.body.code).toBe('UNAUTHENTICATED')
+    }
+  })
+})
+
+describe('admin sign-in', () => {
+  it('signs the admin in with an httpOnly cookie and the standard envelope', async () => {
+    const res = await request(app).post('/api/auth/login').send({ email: 'ADMIN@test.dev', password: TEST_PASSWORD })
 
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ success: true, data: { user: { email: 'asha@test.dev', role: 'member' } } })
+    expect(res.body).toMatchObject({ success: true, data: { user: { email: 'admin@test.dev', role: 'admin' } } })
     expect(res.body.data.user).not.toHaveProperty('passwordHash')
-    const cookie = res.headers['set-cookie'].find((c) => c.startsWith('ta_session='))
-    expect(cookie).toMatch(/HttpOnly/i)
-    expect(cookie).toMatch(/SameSite=Lax/i)
+    expect(sessionCookie(res)).toMatch(/HttpOnly/i)
+    expect(sessionCookie(res)).toMatch(/SameSite=Lax/i)
   })
 
   it('rejects a wrong password without saying which part was wrong', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'asha@test.dev', password: 'nope-nope' })
+    const res = await request(app).post('/api/auth/login').send({ email: 'admin@test.dev', password: 'nope-nope' })
     expect(res.status).toBe(401)
     expect(res.body).toMatchObject({ success: false, code: 'INVALID_CREDENTIALS' })
   })
 
-  it('requires a session for member views', async () => {
-    const res = await request(app).get('/api/leaderboard')
+  it('lets the admin manage the team, with per-field validation errors', async () => {
+    const cookie = await signInAsAdmin()
+
+    const list = await request(app).get('/api/admin/members').set('Cookie', cookie)
+    expect(list.status).toBe(200)
+    expect(list.body.data.items.map((m) => m.name)).toEqual(['Asha'])
+
+    const created = await request(app).post('/api/admin/members').set('Cookie', cookie).send({ name: 'Bala', designation: 'QA' })
+    expect(created.status).toBe(201)
+    expect(created.body.data.member).toMatchObject({ name: 'Bala', designation: 'QA', isActive: true })
+
+    const invalid = await request(app).post('/api/admin/points').set('Cookie', cookie).send({})
+    expect(invalid.status).toBe(422)
+    expect(invalid.body.fieldErrors).toHaveProperty('memberIds')
+  })
+
+  it('ends older sessions when the admin changes the password', async () => {
+    const olderToken = tokenFor(admin, 60)
+    await changeOwnPassword(admin._id, TEST_PASSWORD, 'BrandNewPass123')
+
+    const res = await request(app).get('/api/admin/members').set('Cookie', `ta_session=${olderToken}`)
     expect(res.status).toBe(401)
-    expect(res.body.code).toBe('UNAUTHENTICATED')
-  })
-})
-
-describe('role guard', () => {
-  it('blocks members from every admin endpoint on the server', async () => {
-    const cookie = await signIn(member)
-    const attempts = [
-      request(app).get('/api/admin/members').set('Cookie', cookie),
-      request(app).post('/api/admin/points').set('Cookie', cookie).send({ memberIds: [String(member._id)], custom: { label: 'Hack', points: 999 } }),
-      request(app).post('/api/admin/rules').set('Cookie', cookie).send({ label: 'Free points', type: 'reward', points: 100 }),
-      request(app).patch(`/api/admin/events/${String(member._id)}/void`).set('Cookie', cookie),
-    ]
-    for (const res of await Promise.all(attempts)) {
-      expect(res.status).toBe(403)
-      expect(res.body.code).toBe('ADMIN_ONLY')
-    }
+    expect(res.body.code).toBe('SESSION_REVOKED')
   })
 
-  it('lets the admin in, and validates input with per-field errors', async () => {
-    const cookie = await signIn(admin)
-    expect((await request(app).get('/api/admin/members').set('Cookie', cookie)).status).toBe(200)
-
-    const res = await request(app).post('/api/admin/points').set('Cookie', cookie).send({})
-    expect(res.status).toBe(422)
-    expect(res.body.fieldErrors).toHaveProperty('memberIds')
-  })
-})
-
-describe('sessions', () => {
-  it('makes members on a temporary password set their own before anything else', async () => {
-    await resetMemberPassword(String(member._id), TEST_PASSWORD)
-    const cookie = await signIn(member)
-
-    const blocked = await request(app).get('/api/leaderboard').set('Cookie', cookie)
-    expect(blocked.status).toBe(403)
-    expect(blocked.body.code).toBe('PASSWORD_CHANGE_REQUIRED')
-
-    const changed = await request(app)
-      .post('/api/auth/change-password')
-      .set('Cookie', cookie)
-      .send({ currentPassword: TEST_PASSWORD, newPassword: 'MyOwnPass123' })
-    expect(changed.status).toBe(200)
-    const fresh = changed.headers['set-cookie'].find((c) => c.startsWith('ta_session=')).split(';')[0]
-    expect((await request(app).get('/api/leaderboard').set('Cookie', fresh)).status).toBe(200)
-  })
-
-  it('ends sessions at once on deactivation and on password reset', async () => {
-    const cookie = await signIn(member)
-    await setMemberStatus(String(member._id), false)
-    const deactivated = await request(app).get('/api/leaderboard').set('Cookie', cookie)
-    expect(deactivated.status).toBe(401)
-    expect(deactivated.body.code).toBe('ACCOUNT_DEACTIVATED')
-
-    await setMemberStatus(String(member._id), true)
-    const olderToken = jwt.sign(
-      { sub: String(member._id), role: 'member', iat: Math.floor(Date.now() / 1000) - 60 },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    )
-    await resetMemberPassword(String(member._id), 'TemporaryPass9')
-    const revoked = await request(app).get('/api/auth/me').set('Cookie', `ta_session=${olderToken}`)
-    expect(revoked.status).toBe(401)
-    expect(revoked.body.code).toBe('SESSION_REVOKED')
+  it('never accepts a session for a teammate', async () => {
+    const res = await request(app).get('/api/admin/members').set('Cookie', `ta_session=${tokenFor(member)}`)
+    expect(res.status).toBe(401)
+    expect(res.body.code).toBe('SESSION_INVALID')
   })
 
   it('rejects writes coming from another website (CSRF guard)', async () => {
-    const cookie = await signIn(admin)
+    const cookie = await signInAsAdmin()
     const res = await request(app)
       .post('/api/admin/points')
       .set('Cookie', cookie)

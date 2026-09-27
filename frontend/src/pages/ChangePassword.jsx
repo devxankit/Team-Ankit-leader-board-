@@ -6,17 +6,12 @@ import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import { Field, TextInput } from '@/components/ui/Field'
 import { useAuth } from '@/hooks/useAuth'
-import { firstName } from '@/lib/format'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
 
-/**
- * Forced after the admin sets a temporary password (first sign-in or reset),
- * and reachable any time from the account menu.
- */
+/** The admin's password, reachable from the account menu. */
 export default function ChangePassword() {
-  const { user, changePassword, logout } = useAuth()
+  const { changePassword } = useAuth()
   const navigate = useNavigate()
-  const forced = user.mustChangePassword
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
@@ -35,9 +30,9 @@ export default function ChangePassword() {
 
     setSubmitting(true)
     try {
-      const updated = await changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
+      await changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
       toast.success('Password updated')
-      navigate(updated.role === 'admin' ? '/admin/points' : '/', { replace: true })
+      navigate('/admin/points', { replace: true })
     } catch (error) {
       setErrors(error.fieldErrors ?? {})
       if (!Object.keys(error.fieldErrors ?? {}).length) setFormError(error.message)
@@ -55,15 +50,11 @@ export default function ChangePassword() {
         <span className="grid size-12 place-items-center rounded-2xl bg-accent/12 text-accent">
           <KeyRound className="size-6" />
         </span>
-        <h1 className="mt-4 text-2xl font-bold">{forced ? `Welcome, ${firstName(user.name)}!` : 'Change password'}</h1>
-        <p className="mt-1 text-sm text-muted">
-          {forced
-            ? 'You signed in with a temporary password. Choose your own to continue.'
-            : 'Other devices will be signed out.'}
-        </p>
+        <h1 className="mt-4 text-2xl font-bold">Change password</h1>
+        <p className="mt-1 text-sm text-muted">Other devices where you're signed in will be signed out.</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
-          <Field label={forced ? 'Temporary password' : 'Current password'} error={errors.currentPassword}>
+          <Field label="Current password" error={errors.currentPassword}>
             {(id) => (
               <TextInput
                 id={id}
@@ -113,15 +104,9 @@ export default function ChangePassword() {
         </form>
 
         <div className="mt-5 text-center text-sm">
-          {forced ? (
-            <button type="button" onClick={logout} className="font-semibold text-muted hover:text-ink">
-              Sign out instead
-            </button>
-          ) : (
-            <Link to="/" className="inline-flex items-center gap-1.5 font-semibold text-muted hover:text-ink">
-              <ArrowLeft className="size-4" /> Back to the leaderboard
-            </Link>
-          )}
+          <Link to="/admin" className="inline-flex items-center gap-1.5 font-semibold text-muted hover:text-ink">
+            <ArrowLeft className="size-4" /> Back to the admin panel
+          </Link>
         </div>
       </div>
     </div>

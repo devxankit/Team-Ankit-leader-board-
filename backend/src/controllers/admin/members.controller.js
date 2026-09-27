@@ -1,10 +1,4 @@
-import {
-  createMember,
-  listMembers,
-  resetMemberPassword,
-  setMemberStatus,
-  updateMember,
-} from '../../services/member.service.js'
+import { createMember, listMembers, setMemberStatus, updateMember } from '../../services/member.service.js'
 import { sendCreated, sendOk } from '../../utils/respond.js'
 
 export async function list(req, res) {
@@ -25,9 +19,4 @@ export async function setStatus(req, res) {
   const member = await setMemberStatus(req.valid.params.id, req.body.isActive)
   const verb = member.isActive ? 'reactivated' : 'deactivated'
   sendOk(res, { member }, `${member.name} was ${verb}.`)
-}
-
-export async function resetPassword(req, res) {
-  const member = await resetMemberPassword(req.valid.params.id, req.body.password)
-  sendOk(res, { member }, `Password reset — ${member.name} must choose a new one at next sign-in.`)
 }

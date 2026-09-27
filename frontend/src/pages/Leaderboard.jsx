@@ -83,7 +83,7 @@ export default function Leaderboard() {
             description={
               isAdmin
                 ? 'Add your team in Admin → Members, then give the first points.'
-                : "Your admin hasn't added the team yet. Check back soon."
+                : 'The team will show up here as soon as the admin adds everyone. Check back soon.'
             }
             action={
               isAdmin && (
@@ -95,7 +95,7 @@ export default function Leaderboard() {
       ) : (
         <>
           {hasPoints ? (
-            <Podium rows={rows.slice(0, 3)} meId={user.id} onSelect={setSelectedId} />
+            <Podium rows={rows.slice(0, 3)} meId={user?.id} onSelect={setSelectedId} />
           ) : (
             <div className="card">
               <EmptyState
@@ -112,7 +112,7 @@ export default function Leaderboard() {
           )}
 
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <Standings rows={rows} meId={user.id} periodLabel={PERIOD_LABELS[period]} onSelect={setSelectedId} />
+            <Standings rows={rows} meId={user?.id} periodLabel={PERIOD_LABELS[period]} onSelect={setSelectedId} />
             <ActivityFeed onSelect={setSelectedId} />
           </div>
         </>

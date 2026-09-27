@@ -1,5 +1,4 @@
 import { changeOwnPassword, loginWithPassword, signSessionToken } from '../services/auth.service.js'
-import { disconnectUser } from '../sockets/index.js'
 import { sendOk } from '../utils/respond.js'
 import { toSessionUser } from '../utils/serializers.js'
 import { clearSessionCookie, setSessionCookie } from '../utils/sessionCookie.js'
@@ -22,14 +21,14 @@ export function logout(req, res) {
   sendOk(res, null, 'Signed out.')
 }
 
+/** `user` is null for visitors — not an error, since the leaderboard is public. */
 export function me(req, res) {
-  sendOk(res, { user: toSessionUser(req.user) })
+  sendOk(res, { user: req.user ? toSessionUser(req.user) : null })
 }
 
 export async function changePassword(req, res) {
   const user = await changeOwnPassword(req.user._id, req.body.currentPassword, req.body.newPassword)
   // Sessions on other devices were revoked by the change; this one gets a fresh cookie.
-  disconnectUser(user._id)
   startSession(res, user)
   sendOk(res, { user: toSessionUser(user) }, 'Password updated.')
 }

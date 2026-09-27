@@ -39,5 +39,7 @@ try {
   await start()
 } catch (error) {
   console.error(`\n[server] ${error.message}\n`)
-  process.exitCode = 1
+  // The database connection would otherwise keep a failed server process alive.
+  await disconnectDB().catch(() => {})
+  process.exit(1)
 }

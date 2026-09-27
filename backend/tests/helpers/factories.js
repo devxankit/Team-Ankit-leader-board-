@@ -8,23 +8,20 @@ export const TEST_PASSWORD = 'Password@123'
 
 let sequence = 0
 
-export async function createUser({ password = TEST_PASSWORD, ...fields } = {}) {
+/** A teammate: no account, just a name on the board. */
+export function createUser(fields = {}) {
   sequence += 1
-  const user = new User({
-    name: `Person ${sequence}`,
-    email: `person${sequence}@test.dev`,
-    role: ROLES.MEMBER,
-    designation: 'Developer',
-    ...fields,
-  })
-  await user.setPassword(password)
-  // setPassword stamps "now"; tests that backdate an account keep sessions valid.
-  if (fields.createdAt) user.passwordChangedAt = fields.createdAt
-  await user.save()
-  return user
+  return User.create({ name: `Person ${sequence}`, role: ROLES.MEMBER, designation: 'Developer', ...fields })
 }
 
-export const createAdmin = (fields = {}) => createUser({ role: ROLES.ADMIN, name: 'Admin', ...fields })
+/** The admin, who signs in with email and password. */
+export async function createAdmin({ password = TEST_PASSWORD, ...fields } = {}) {
+  sequence += 1
+  const admin = new User({ name: 'Admin', email: `admin${sequence}@test.dev`, role: ROLES.ADMIN, ...fields })
+  await admin.setPassword(password)
+  await admin.save()
+  return admin
+}
 
 export function createRule(fields = {}) {
   return Rule.create({ label: 'Task completed', points: 10, category: 'Delivery', ...fields })

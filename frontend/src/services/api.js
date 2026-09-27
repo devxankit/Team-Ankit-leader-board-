@@ -21,7 +21,7 @@ export const http = axios.create({
 
 let handleSessionLost = () => {}
 
-/** AuthProvider registers what happens when the server says the session is gone. */
+/** AuthProvider registers what happens when the server says the admin session is gone. */
 export function onSessionLost(handler) {
   handleSessionLost = handler
 }
@@ -44,9 +44,7 @@ http.interceptors.response.use(
     })
 
     const url = error.config?.url ?? ''
-    const sessionEnded = status === 401 && !SESSION_CHECK_URLS.some((path) => url.startsWith(path))
-    const mustChangePassword = status === 403 && body.code === 'PASSWORD_CHANGE_REQUIRED'
-    if (sessionEnded || mustChangePassword) handleSessionLost(apiError)
+    if (status === 401 && !SESSION_CHECK_URLS.some((path) => url.startsWith(path))) handleSessionLost(apiError)
 
     return Promise.reject(apiError)
   }

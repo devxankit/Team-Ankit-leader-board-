@@ -5,8 +5,9 @@ import { toast } from 'sonner'
 import Avatar from '@/components/ui/Avatar'
 import { useAuth } from '@/hooks/useAuth'
 
+/** The signed-in admin's account menu. */
 export default function UserMenu() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -27,7 +28,7 @@ export default function UserMenu() {
     setOpen(false)
     await logout()
     toast.success('Signed out')
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (
@@ -53,7 +54,7 @@ export default function UserMenu() {
             <p className="truncate font-semibold">{user.name}</p>
             <p className="truncate text-xs text-muted">{user.email}</p>
             <p className="mt-1.5 inline-block rounded-md bg-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
-              {isAdmin ? 'Admin' : user.designation || 'Member'}
+              Admin
             </p>
           </div>
           <Link
