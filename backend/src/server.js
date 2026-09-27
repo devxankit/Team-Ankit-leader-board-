@@ -19,10 +19,12 @@ async function start() {
           : error
       )
     })
-    httpServer.listen(env.port, resolve)
+    httpServer.listen({ port: env.port, host: env.host }, resolve)
   })
 
-  console.log(`[server] TA API on http://localhost:${env.port} (${env.nodeEnv}, timezone ${env.timezone})`)
+  console.log(
+    `[server] TA API on http://${env.host || 'localhost'}:${env.port} (${env.nodeEnv}, timezone ${env.timezone})`
+  )
 
   const shutdown = async (signal) => {
     console.log(`[server] ${signal} received — shutting down`)

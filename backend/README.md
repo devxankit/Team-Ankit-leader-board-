@@ -38,6 +38,7 @@ To remove the demo members for good, deactivate them in **Admin → Members** (t
 | `JWT_EXPIRES_IN` | | Session length, default `7d` |
 | `CLIENT_URL` | | Allowed browser origin(s), comma-separated. Default `http://localhost:5173` |
 | `PORT` | | Default `5000` |
+| `HOST` | | Interface to listen on. Default all; `127.0.0.1` behind a reverse proxy |
 | `APP_TIMEZONE` | | Timezone for "This week" (starts Monday) / "This month". Default `Asia/Kolkata` |
 | `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | for seeding | The admin account `npm run seed` creates |
 | `TRUST_PROXY` | | Number of reverse proxies in front of the API (for rate limiting). Default `0` |

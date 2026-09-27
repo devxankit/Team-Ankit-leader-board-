@@ -32,6 +32,9 @@ export const env = {
   nodeEnv,
   port: toInt(process.env.PORT, 5000),
 
+  /** Interface to listen on. Unset = all interfaces; 127.0.0.1 keeps a proxied API off the public network. */
+  host: (process.env.HOST || '').trim() || undefined,
+
   /** Browser origins allowed to call the API (comma-separated). */
   clientUrls: toList(process.env.CLIENT_URL, ['http://localhost:5173']),
 
