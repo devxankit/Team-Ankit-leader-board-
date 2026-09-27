@@ -1,19 +1,19 @@
-import { Link } from 'react-router-dom'
-import { siteConfig } from '@/config/site'
+import { Crown } from 'lucide-react'
 
-export default function Logo({ className = '' }) {
+export default function Logo({ compact = false }) {
   return (
-    <Link
-      to="/"
-      aria-label={`${siteConfig.name} — Home`}
-      className={`group inline-flex items-center gap-2.5 font-bold tracking-tight text-white ${className}`}
-    >
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform">
-        ⚡
+    <span className="flex items-center gap-2.5">
+      <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-[#8b7dff] to-[#4f46e5] shadow-md shadow-indigo-500/25">
+        <Crown className="size-5 text-amber-300" strokeWidth={2.5} aria-hidden="true" />
       </span>
-      <span className="text-lg font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
-        {siteConfig.name}
-      </span>
-    </Link>
+      {!compact && (
+        <span className="leading-none">
+          <span className="block font-display text-xl font-extrabold tracking-wider">TEAM ANKIT</span>
+          <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.25em] text-muted">
+            Leaderboard
+          </span>
+        </span>
+      )}
+    </span>
   )
 }

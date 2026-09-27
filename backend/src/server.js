@@ -1,24 +1,43 @@
+import http from 'node:http'
 import app from './app.js'
-import { env, reportConfigWarnings } from './config/env.js'
-import { verifyMailTransport } from './config/mailer.js'
-import { connectDB } from './config/db.js'
+import { connectDB, disconnectDB } from './config/db.js'
+import { assertEnv, env } from './config/env.js'
+import { closeSockets, initSockets } from './sockets/index.js'
 
-reportConfigWarnings()
-verifyMailTransport()
-await connectDB()
+async function start() {
+  assertEnv()
+  await connectDB()
 
-const server = app.listen(env.port, () => {
-  console.log(`Server running in ${env.nodeEnv} mode on port ${env.port}`)
-  console.log(`Accepting requests from: ${env.clientUrls.join(', ')}`)
-})
+  const httpServer = http.createServer(app)
+  initSockets(httpServer)
 
-// Fail loudly instead of leaving the process in a broken state.
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err)
-  server.close(() => process.exit(1))
-})
+  await new Promise((resolve, reject) => {
+    httpServer.once('error', (error) => {
+      reject(
+        error.code === 'EADDRINUSE'
+          ? new Error(`Port ${env.port} is already in use. Stop the other process or set PORT in backend/.env.`)
+          : error
+      )
+    })
+    httpServer.listen(env.port, resolve)
+  })
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err)
-  process.exit(1)
-})
+  console.log(`[server] TA API on http://localhost:${env.port} (${env.nodeEnv}, timezone ${env.timezone})`)
+
+  const shutdown = async (signal) => {
+    console.log(`[server] ${signal} received — shutting down`)
+    await closeSockets()
+    await new Promise((resolve) => httpServer.close(resolve))
+    await disconnectDB()
+    process.exit(0)
+  }
+  process.once('SIGINT', shutdown)
+  process.once('SIGTERM', shutdown)
+}
+
+try {
+  await start()
+} catch (error) {
+  console.error(`\n[server] ${error.message}\n`)
+  process.exitCode = 1
+}

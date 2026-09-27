@@ -1,27 +1,29 @@
 import mongoose from 'mongoose'
-import { env, isProduction } from './env.js'
+import { env } from './env.js'
 
-export async function connectDB() {
+mongoose.set('strictQuery', true)
+
+export async function connectDB(uri = env.mongodbUri) {
   try {
-    const conn = await mongoose.connect(env.mongodbUri, {
-      serverSelectionTimeoutMS: 5000,
-    })
-    console.log(`MongoDB Connected: ${conn.connection.host}`)
-    return conn
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 8000 })
   } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`)
-    if (error.name === 'MongooseServerSelectionError' || error.message.includes('timed out')) {
-      console.error(
-        '\n💡 Troubleshooting MongoDB Connection:\n' +
-        '  1. Atlas IP Whitelist: Go to MongoDB Atlas -> Network Access and add your IP (or 0.0.0.0/0 for dev).\n' +
-        '  2. Local MongoDB: If running locally, set MONGODB_URI=mongodb://127.0.0.1:27017/vrushahi in backend/.env\n' +
-        '  3. Network/Firewall: Check if your network/VPN blocks outgoing connections on port 27017.\n'
-      )
-    }
-    if (isProduction) {
-      process.exit(1)
-    } else {
-      console.warn('⚠️ Development mode: Server will continue running without MongoDB connection.')
-    }
+    throw new Error(
+      `Could not connect to MongoDB (${error.message}).\n` +
+        '  • Check MONGODB_URI in backend/.env\n' +
+        '  • Atlas: allow your IP under Network Access\n' +
+        '  • Local: make sure the MongoDB service is running\n' +
+        '  • Atlas: check the username/password in the connection string',
+      { cause: error }
+    )
   }
+
+  const { host, name } = mongoose.connection
+  console.log(`[db] connected to ${host}/${name}`)
+  return mongoose.connection
 }
+
+export function disconnectDB() {
+  return mongoose.disconnect()
+}
+
+export const isDbConnected = () => mongoose.connection.readyState === 1

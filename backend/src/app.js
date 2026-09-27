@@ -1,65 +1,66 @@
-import 'express-async-errors'
-import express from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import morgan from 'morgan'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import compression from 'compression'
 import cookieParser from 'cookie-parser'
+import cors from 'cors'
+import express from 'express'
+import helmet from 'helmet'
+import morgan from 'morgan'
 
-import { env, isProduction } from './config/env.js'
-import routes from './routes/index.js'
-import { apiLimiter } from './middleware/rateLimiter.js'
-import { notFound } from './middleware/notFound.js'
+import { env, isProduction, isTest } from './config/env.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import { apiLimiter } from './middleware/rateLimiter.js'
+import routes from './routes/index.js'
 import { ApiError } from './utils/ApiError.js'
+import { isAllowedOrigin } from './utils/origin.js'
 
 const app = express()
 
-/**
- * Proxy hop count. express-rate-limit derives the client IP from this, and
- * rejects a blanket `true` because it would let any caller spoof
- * X-Forwarded-For and slip the limiter. Set TRUST_PROXY to the real number of
- * proxies in front of the app when deploying behind nginx/a load balancer.
- */
+// express-rate-limit keys on client IP, which needs the real proxy hop count.
 app.set('trust proxy', env.trustProxy)
 app.disable('x-powered-by')
 
-// --- Security & core middleware ---
-app.use(helmet())
+const socketOrigins = env.clientUrls.map((url) => url.replace(/^http/, 'ws'))
 app.use(
-  cors({
-    // Allow the configured site origins, plus tools with no Origin header
-    // (curl, health checks, server-to-server).
-    origin(origin, callback) {
-      if (!origin || env.clientUrls.includes(origin)) {
-        callback(null, true)
-        return
-      }
-      // An ApiError (not a bare Error) so this surfaces as a 403 rather than
-      // being logged as an unhandled 500 server fault.
-      callback(new ApiError(403, 'Origin not allowed', { code: 'CORS_REJECTED' }))
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        // Socket.io upgrades to a websocket on the same host.
+        connectSrc: ["'self'", ...socketOrigins],
+      },
     },
-    credentials: true,
   })
 )
+
+// Rejecting unknown origins here (not just in preflights) is the CSRF guard.
+app.use(
+  cors((req, callback) => {
+    if (isAllowedOrigin(req.header('Origin'), req.headers.host)) {
+      callback(null, { origin: true, credentials: true })
+    } else {
+      callback(ApiError.forbidden('This site is not allowed to call the API.', 'ORIGIN_NOT_ALLOWED'))
+    }
+  })
+)
+
 app.use(compression())
-// Form payloads are small; a tight cap keeps oversized JSON from reaching the
-// parser. Resume uploads bypass this — multer handles multipart separately.
-app.use(express.json({ limit: '100kb' }))
-app.use(express.urlencoded({ extended: true, limit: '100kb' }))
+app.use(express.json({ limit: '50kb' }))
 app.use(cookieParser())
-app.use(morgan(isProduction ? 'combined' : 'dev'))
+if (!isTest) app.use(morgan(isProduction ? 'combined' : 'dev'))
 
-app.use('/uploads', express.static('public/uploads'))
-
-// --- Routes ---
-app.get('/', (req, res) => {
-  res.json({ message: 'API server is running' })
-})
 app.use('/api', apiLimiter, routes)
 
-// --- Error handling (must be last) ---
-app.use(notFound)
+// Production: serve the built frontend so pages, API and sockets share one origin.
+const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist')
+if (env.serveClient && fs.existsSync(path.join(clientDist, 'index.html'))) {
+  app.use(express.static(clientDist, { index: false, maxAge: '1h' }))
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/socket.io')) return next()
+    res.sendFile(path.join(clientDist, 'index.html'))
+  })
+}
+
 app.use(errorHandler)
 
 export default app

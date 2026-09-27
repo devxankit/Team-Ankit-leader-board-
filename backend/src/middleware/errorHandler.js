@@ -1,61 +1,63 @@
-import multer from 'multer'
-import { env, isProduction } from '../config/env.js'
+import mongoose from 'mongoose'
+import { isProduction, isTest } from '../config/env.js'
 import { ApiError } from '../utils/ApiError.js'
 
 /**
- * Centralised error handler — keep this as the LAST middleware registered in
- * app.js. Throw from anywhere (express-async-errors covers async handlers) and
- * errors land here.
- *
- * Normalises three shapes into one JSON envelope:
- *   { success: false, message, fieldErrors?, code? }
- *
- * `fieldErrors` is what React Hook Form maps onto individual inputs, so
- * server-side validation failures render exactly like client-side ones.
+ * Turns anything thrown into the standard envelope:
+ *   { success: false, data: null, message, code?, fieldErrors? }
+ * Keep this as the LAST middleware in app.js.
  */
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line no-unused-vars -- Express identifies error handlers by their 4 arguments
 export function errorHandler(err, req, res, next) {
-  let statusCode = 500
-  let message = 'Something went wrong. Please try again.'
-  let fieldErrors
-  let code
+  const apiError = toApiError(err)
 
-  if (err instanceof ApiError) {
-    statusCode = err.statusCode
-    message = err.message
-    fieldErrors = err.fieldErrors
-    code = err.code
-  } else if (err instanceof multer.MulterError) {
-    statusCode = 422
-    code = err.code
-
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      const limitMb = Math.round(env.upload.maxFileSizeBytes / (1024 * 1024))
-      message = 'Please correct the highlighted fields.'
-      fieldErrors = { resume: `File is too large. Maximum size is ${limitMb} MB.` }
-    } else {
-      message = 'Please correct the highlighted fields.'
-      fieldErrors = { resume: 'That file could not be accepted.' }
-    }
-  } else if (err.status === 404 || err.statusCode === 404) {
-    statusCode = 404
-    message = err.message
-  } else if (err.type === 'entity.too.large') {
-    statusCode = 413
-    message = 'That request was too large.'
+  if (apiError.statusCode >= 500 && !isTest) {
+    console.error('[error]', req.method, req.originalUrl, err)
   }
 
-  // Anything unrecognised is a genuine server fault — log it in full, but never
-  // leak internals to the client in production.
-  if (statusCode >= 500) {
-    console.error('[error]', err)
-  }
-
-  res.status(statusCode).json({
+  res.status(apiError.statusCode).json({
     success: false,
-    message,
-    ...(fieldErrors ? { fieldErrors } : {}),
-    ...(code ? { code } : {}),
-    ...(isProduction ? {} : { stack: err.stack }),
+    data: null,
+    message: apiError.message,
+    ...(apiError.code ? { code: apiError.code } : {}),
+    ...(apiError.fieldErrors ? { fieldErrors: apiError.fieldErrors } : {}),
+    ...(!isProduction && apiError.statusCode >= 500 ? { stack: err.stack } : {}),
+  })
+}
+
+function toApiError(err) {
+  if (err instanceof ApiError) return err
+
+  // Malformed ObjectId that slipped past validation.
+  if (err instanceof mongoose.Error.CastError) {
+    return ApiError.badRequest(`Invalid value for ${err.path}.`, { code: 'INVALID_ID' })
+  }
+
+  if (err instanceof mongoose.Error.ValidationError) {
+    const fieldErrors = Object.fromEntries(
+      Object.entries(err.errors).map(([field, detail]) => [field, detail.message])
+    )
+    return ApiError.validation(fieldErrors)
+  }
+
+  // Unique index violation (e.g. two people saving the same email at once).
+  if (err?.code === 11000) {
+    const field = Object.keys(err.keyValue ?? err.keyPattern ?? {})[0] ?? 'value'
+    return ApiError.conflict(`That ${field} is already in use.`, {
+      code: 'DUPLICATE',
+      fieldErrors: { [field]: `That ${field} is already in use.` },
+    })
+  }
+
+  // Body parser failures.
+  if (err?.type === 'entity.parse.failed') {
+    return ApiError.badRequest('The request body is not valid JSON.', { code: 'INVALID_JSON' })
+  }
+  if (err?.type === 'entity.too.large') {
+    return new ApiError(413, 'That request is too large.', { code: 'PAYLOAD_TOO_LARGE' })
+  }
+
+  return new ApiError(500, 'Something went wrong on our side. Please try again.', {
+    code: 'INTERNAL_ERROR',
   })
 }

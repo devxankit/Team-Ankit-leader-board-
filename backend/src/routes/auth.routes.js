@@ -1,19 +1,15 @@
 import { Router } from 'express'
-import {
-  register,
-  login,
-  getMe,
-  updateProfile,
-  changePassword,
-} from '../controllers/auth.controller.js'
-import { protect } from '../middleware/authMiddleware.js'
+import * as auth from '../controllers/auth.controller.js'
+import { requireSession } from '../middleware/auth.js'
+import { loginLimiter } from '../middleware/rateLimiter.js'
+import { validate } from '../middleware/validate.js'
+import { changePasswordBody, loginBody } from '../validation/auth.schemas.js'
 
 const router = Router()
 
-router.post('/register', register)
-router.post('/login', login)
-router.get('/me', protect, getMe)
-router.put('/profile', protect, updateProfile)
-router.put('/change-password', protect, changePassword)
+router.post('/login', loginLimiter, validate({ body: loginBody }), auth.login)
+router.post('/logout', auth.logout)
+router.get('/me', requireSession, auth.me)
+router.post('/change-password', requireSession, validate({ body: changePasswordBody }), auth.changePassword)
 
 export default router

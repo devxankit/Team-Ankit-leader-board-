@@ -1,80 +1,116 @@
-# Backend — Vrushahi Group API
+# TA backend — API
 
-Express 4 (ESM) serving the Contact and Career form endpoints.
+Express 5 + MongoDB (Mongoose) + Socket.io API for **TA (Team Ankit)**, the team performance leaderboard.
+Members see a live leaderboard. The admin manages members, rules and points.
+
+The web app lives in [`../frontend`](../frontend/README.md).
+
+## Run it
 
 ```bash
+cd backend
 npm install
-cp .env.example .env
-npm run dev      # http://localhost:5000
+cp .env.example .env      # then fill in MONGODB_URI, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+npm run seed              # creates the admin + 12 starter rules (safe to re-run)
+npm run dev               # http://localhost:5000 (restarts on file changes)
 ```
 
-## Endpoints
+Then start the frontend (`cd frontend && npm run dev`) and open http://localhost:5173.
 
-| Method | Path           | Body                | Notes |
-|--------|----------------|---------------------|-------|
-| GET    | `/api/health`  | —                   | uptime probe |
-| POST   | `/api/contact` | JSON                | name, email, phone, message |
-| POST   | `/api/career`  | multipart/form-data | contact fields + address, designation, resume |
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | API with auto-restart (`node --watch`) |
+| `npm start` | API for production |
+| `npm run seed` | Admin from `ADMIN_*` + starter rules. Never overwrites existing data |
+| `npm run seed -- --reset-admin-password` | Also resets the admin password to `ADMIN_PASSWORD` |
+| `npm run seed:demo` | Adds 8 demo members (password `Demo@12345`) with ~6 weeks of history |
+| `npm run seed:demo -- --reset` | Deletes the demo members and their entries, then recreates them |
+| `npm test` | Unit + API tests on a throwaway in-memory MongoDB (never touches your database) |
 
-Success is `{ success: true, message }`. Failures are
-`{ success: false, message, fieldErrors?, code? }`, where `fieldErrors` is a
-`{ field: message }` map the frontend drops onto the matching inputs.
+To remove the demo members for good, deactivate them in **Admin → Members**, or delete the `@example.com` users from the database.
 
-## Layout
+## Environment (`.env`)
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `MONGODB_URI` | yes | Atlas or local connection string |
+| `JWT_SECRET` | yes | Long random string (32+ characters in production) |
+| `JWT_EXPIRES_IN` | | Session length, default `7d` |
+| `CLIENT_URL` | | Allowed browser origin(s), comma-separated. Default `http://localhost:5173` |
+| `PORT` | | Default `5000` |
+| `APP_TIMEZONE` | | Timezone for "This week" (starts Monday) / "This month". Default `Asia/Kolkata` |
+| `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | for seeding | The admin account `npm run seed` creates |
+| `TRUST_PROXY` | | Number of reverse proxies in front of the API (for rate limiting). Default `0` |
+| `SERVE_CLIENT` | | Serve `../frontend/dist` from Express (single-origin deploy). Default `true` in production |
+| `COOKIE_SAMESITE`, `COOKIE_SECURE` | | Only for cross-site deploys: `none` + `true` (HTTPS required) |
+
+## How scoring works
+
+- **Ledger, not counters.** Every give/take is a `PointEvent`. A score is the sum of a member's non-voided events.
+  Each event stores a snapshot of the rule's label and points, so editing or archiving a rule never changes history.
+- **Reversing** an entry marks it voided (kept for the audit trail); every total skips it, so scores correct themselves.
+- **Leaderboard** totals come from one MongoDB aggregation (`services/leaderboard.service.js`): match non-voided events → group by member → conditional sums for the period, all-time points, reward/penalty counts, the standings 7 days ago and the last 7 days.
+- **Game rules** are pure functions in `services/gamification.js`: levels, "X pts to next level", ranking (ties share a rank: 1, 2, 2, 4, then by name), trend (▲/▼ vs the same board 7 days ago), 🔥 on fire (3+ rewards and no penalties in 7 days).
+- **Tuning** (level thresholds, 🔥 rule, trend window, feed size) lives in one file: `src/config/gamification.js`.
+- Only active members are ranked. The admin is not ranked.
+
+## API
+
+All routes are under `/api`. Every response is `{ success, data, message }`. Errors add `code` and, for forms, `fieldErrors`.
+
+| Method & path | Access | Purpose |
+| --- | --- | --- |
+| `POST /auth/login` | public, rate-limited | Sets the httpOnly `ta_session` cookie |
+| `POST /auth/logout` | anyone | Clears the cookie |
+| `GET /auth/me` | signed in | Current user |
+| `POST /auth/change-password` | signed in | Own password; required first when on a temporary password |
+| `GET /leaderboard?period=all\|month\|week` | member | Ranked rows with points, level, trend, 🔥 |
+| `GET /activity?limit=40` | member | Latest non-reversed entries |
+| `GET /members/:id/history?page=` | member | One member's entries, paginated |
+| `GET /admin/members?status=active\|inactive\|all` | admin | List members |
+| `POST /admin/members` | admin | Add member (name, email, designation, temporary password) |
+| `PATCH /admin/members/:id` | admin | Edit name, email, designation, avatar colour |
+| `PATCH /admin/members/:id/status` | admin | `{ isActive }` — deactivate / reactivate |
+| `POST /admin/members/:id/reset-password` | admin | New temporary password; signs them out everywhere |
+| `GET /admin/rules?status=active\|archived\|all` | admin | List rules |
+| `POST /admin/rules` | admin | `{ label, type: reward\|penalty, points, category, icon }` |
+| `PATCH /admin/rules/:id` | admin | Edit, or restore with `{ isActive: true }` |
+| `DELETE /admin/rules/:id` | admin | Archive (soft delete) |
+| `POST /admin/points` | admin | `{ memberIds[], ruleId }` or `{ memberIds[], custom: { label, points } }`, plus optional `note` |
+| `GET /admin/events` | admin | Activity log. Filters: `member`, `rule` (id or `custom`), `type`, `status`, `from`, `to`, `page`, `limit` |
+| `PATCH /admin/events/:id/void` | admin | Reverse an entry |
+| `GET /health` | public | Liveness + database status |
+
+**Real-time:** after any change that affects scores (points, reverse, member added/edited/deactivated) the server emits
+`leaderboard:updated` `{ reason, at }` over Socket.io. Clients refetch what they're viewing. Socket connections
+authenticate with the same session cookie.
+
+## Security
+
+- JWT in an httpOnly, SameSite=Lax cookie (Secure in production). Passwords hashed with bcrypt.
+- Every request re-checks the user, so deactivation and password resets end sessions immediately.
+- Role checks run on the server (`requireAdmin` on the whole `/admin` router), not just in the UI.
+- Zod validation on every write and query, helmet, CORS allow-list, origin check on writes (CSRF), rate limits on login and the API.
+
+## Structure
 
 ```
 src/
-  config/env.js       all configuration, with warnings for anything unset
-  config/mailer.js    cached SMTP transport
-  routes/             health + form routes
-  controllers/        form.controller.js
-  services/           mail.service.js, captcha.service.js
-  validation/         formSchemas.js (Zod)
-  middleware/         validate, honeypot, rateLimiter, upload, errorHandler
-  templates/          formEmail.js — HTML + text email bodies
-  utils/              ApiError, html escaping
+  config/       env, db, constants, gamification (tuning)
+  models/       User, Rule, PointEvent
+  routes/       auth, board (leaderboard/activity/history), admin
+  controllers/  thin HTTP handlers
+  services/     business logic: auth, leaderboard (aggregation), gamification, points, members, rules, activity
+  middleware/   auth + role guard, validation, rate limits, errors
+  validation/   Zod schemas
+  sockets/      Socket.io setup + leaderboard:updated
+  scripts/      seed, seed-demo
+  utils/        ApiError, response helpers, serializers
+tests/          Vitest (gamification, leaderboard, points, API)
 ```
 
-## Email
+## Deploying
 
-`MAIL_PROVIDER` picks the transport:
-
-- `console` (default) — logs the message instead of sending it, so the forms work
-  end to end with no mail account. Startup warns while this is active.
-- `smtp` — Nodemailer; set `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`.
-  Credentials are verified at boot.
-- `resend` — the Resend HTTP API; set `RESEND_API_KEY`. Uses global `fetch`, no SDK.
-
-`MAIL_TO` is where submissions land. It currently defaults to `info@vrushahi.com`
-— **confirm the real inbox before launch** (PRD B11.5). The legacy PHP mailed
-`techdeshpande@gmail.com`, which looks like a developer's personal address, so it
-is deliberately not the default.
-
-## Spam protection
-
-Four layers, none of which asks the user to solve anything:
-
-1. **Rate limiting** — 5 submissions per IP per 15 minutes (`express-rate-limit`).
-2. **Honeypot** — a hidden `website` field; any value rejects the submission.
-   The rejection message is deliberately vague, and the Zod schema deliberately
-   does *not* validate this field, so the response never names the trap.
-3. **Timing** — `formStartedAt` is stamped when the form mounts; anything
-   completed under `MIN_FORM_FILL_MS` (3s) or over `MAX_FORM_AGE_MS` (6h) is rejected.
-4. **Turnstile** — written and dormant. Set `TURNSTILE_SECRET_KEY` plus the
-   frontend's `VITE_TURNSTILE_SITE_KEY` and verification activates. It fails
-   closed: if Cloudflare is unreachable the submission is refused, not waved through.
-
-This replaces the legacy math-captcha image (`form/img.php` + a bundled TTF) and
-its PHP-session lockout, which a bot defeated simply by not sending the cookie.
-
-## Resume uploads
-
-Held in memory and attached directly to the outgoing email — applicant CVs are
-never written to disk. PDF and Word only, checked on both extension and MIME
-type, capped at `MAX_UPLOAD_BYTES` (5 MB).
-
-## Deployment note
-
-Set `TRUST_PROXY` to the real number of reverse proxies in front of the app.
-`express-rate-limit` needs an accurate client IP and rejects a blanket `true`,
-because that would let any caller spoof `X-Forwarded-For` and bypass the limiter.
+Socket.io needs a long-running Node server (Render, Railway, a VPS…), not serverless functions.
+Simplest setup: build the frontend (`cd frontend && npm run build`), run this API with `NODE_ENV=production`,
+and it serves the app and the API from one origin, so cookies and sockets work with no extra config.

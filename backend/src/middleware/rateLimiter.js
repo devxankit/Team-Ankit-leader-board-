@@ -1,29 +1,29 @@
 import rateLimit from 'express-rate-limit'
-import { env } from '../config/env.js'
+
+const limitMessage = (message) => ({ success: false, data: null, message, code: 'RATE_LIMITED' })
 
 /**
- * Per-IP submission limit for the form endpoints.
- *
- * The legacy PHP enforced one submission per 300 seconds per PHP session, which
- * a bot defeats by not sending the session cookie. This is keyed on IP instead.
+ * Failed sign-ins per IP. Successful logins don't count, so a whole office
+ * sharing one public IP isn't locked out by normal use.
  */
-export const formLimiter = rateLimit({
-  windowMs: env.rateLimit.windowMs,
-  limit: env.rateLimit.max,
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  skipSuccessfulRequests: true,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: {
-    success: false,
-    message:
-      'Too many submissions from this network. Please wait a few minutes and try again.',
-  },
+  message: limitMessage('Too many sign-in attempts. Please wait 15 minutes and try again.'),
 })
 
-/** Looser ceiling on the API as a whole, to blunt scripted abuse. */
+/**
+ * A generous ceiling on the whole API. Every live update makes each open
+ * leaderboard refetch, and a team often shares one office IP, so this only
+ * exists to blunt scripted abuse.
+ */
 export const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 120,
+  limit: 1000,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please slow down.' },
+  message: limitMessage('Too many requests. Please slow down.'),
 })

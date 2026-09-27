@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
+import { DateTime } from 'luxon'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 const toInt = (value, fallback) => {
   const parsed = Number.parseInt(value, 10)
@@ -20,122 +21,80 @@ const toList = (value, fallback = []) =>
         .filter(Boolean)
     : fallback
 
+const nodeEnv = process.env.NODE_ENV || 'development'
+const isProd = nodeEnv === 'production'
+
 /**
- * Centralised, validated access to process.env. Add new variables here (with a
- * sane default where it makes sense) instead of reading process.env directly
- * elsewhere in the app.
+ * Centralised access to process.env. Read configuration from here, never from
+ * process.env directly, so every setting has one documented home.
  */
 export const env = {
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv,
   port: toInt(process.env.PORT, 5000),
 
-  /** Allowed browser origins. Comma-separate for multiple deployments. */
+  /** Browser origins allowed to call the API (comma-separated). */
   clientUrls: toList(process.env.CLIENT_URL, ['http://localhost:5173']),
 
-  mongodbUri:
-    process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/my_app',
-  jwtSecret: process.env.JWT_SECRET || 'super_secret_jwt_dev_key_change_in_production',
+  mongodbUri: (process.env.MONGODB_URI || '').trim(),
+
+  jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
-  /**
-   * Number of proxy hops in front of this server (0 when running directly).
-   * express-rate-limit needs an accurate value to identify client IPs, and
-   * rejects the blanket `true` because it lets anyone spoof X-Forwarded-For.
-   */
+  /** bcrypt cost factor. Tests lower it; 12 is a sensible production default. */
+  bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 12),
+
+  /** IANA zone used for "this week" / "this month" boundaries and date filters. */
+  timezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
+
+  /** Number of reverse-proxy hops in front of the app (0 when run directly). */
   trustProxy: toInt(process.env.TRUST_PROXY, 0),
 
-  mail: {
-    /** 'smtp' | 'resend' | 'console'. Defaults to console so forms work unconfigured. */
-    provider: (process.env.MAIL_PROVIDER || 'console').toLowerCase(),
-
-    /** Envelope sender. */
-    from: process.env.MAIL_FROM || 'App Support <no-reply@example.com>',
-
-    to: toList(process.env.MAIL_TO, ['admin@example.com']),
-
-    smtp: {
-      host: process.env.SMTP_HOST || '',
-      port: toInt(process.env.SMTP_PORT, 587),
-      secure: toBool(process.env.SMTP_SECURE, false),
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || '',
-    },
-
-    resendApiKey: process.env.RESEND_API_KEY || '',
+  cookie: {
+    secure: toBool(process.env.COOKIE_SECURE, isProd),
+    /** 'lax' for same-site deploys; 'none' (with HTTPS) if client and API live on different sites. */
+    sameSite: (process.env.COOKIE_SAMESITE || 'lax').toLowerCase(),
   },
 
-  captcha: {
-    /**
-     * Cloudflare Turnstile secret. Empty by default: the forms ship protected by
-     * honeypot + timing + rate limiting, and Turnstile verification activates
-     * automatically once this and the frontend's VITE_TURNSTILE_SITE_KEY are set.
-     */
-    turnstileSecret: process.env.TURNSTILE_SECRET_KEY || '',
-    verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-  },
+  /** Serve the built frontend (frontend/dist) from Express — one origin for pages, API and sockets. */
+  serveClient: toBool(process.env.SERVE_CLIENT, isProd),
 
-  upload: {
-    maxFileSizeBytes: toInt(process.env.MAX_UPLOAD_BYTES, 5 * 1024 * 1024),
-    allowedExtensions: ['.pdf', '.doc', '.docx'],
-    allowedMimeTypes: [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ],
-  },
-
-  spam: {
-    /** A human cannot complete these forms faster than this. */
-    minFormFillMs: toInt(process.env.MIN_FORM_FILL_MS, 3000),
-    /** Reject stale tabs — the token is too old to be a real session. */
-    maxFormAgeMs: toInt(process.env.MAX_FORM_AGE_MS, 6 * 60 * 60 * 1000),
-  },
-
-  rateLimit: {
-    windowMs: toInt(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
-    /** Submissions per IP per window. The legacy PHP allowed 1 per 300s. */
-    max: toInt(process.env.RATE_LIMIT_MAX, 5),
+  admin: {
+    name: (process.env.ADMIN_NAME || 'Admin').trim(),
+    email: (process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
+    password: process.env.ADMIN_PASSWORD || '',
   },
 }
 
-export const isProduction = env.nodeEnv === 'production'
-
-/** True once a real mail transport is configured. */
-export const isMailConfigured =
-  (env.mail.provider === 'smtp' && Boolean(env.mail.smtp.host)) ||
-  (env.mail.provider === 'resend' && Boolean(env.mail.resendApiKey))
-
-/** True once Turnstile is configured on this server. */
-export const isCaptchaEnabled = Boolean(env.captcha.turnstileSecret)
+export const isProduction = isProd
+export const isTest = nodeEnv === 'test'
 
 /**
- * Warns loudly about configuration that is fine locally but wrong in
- * production. Called once at startup.
+ * Fails fast with a readable message instead of letting a half-configured
+ * server boot. Called once at startup by the server and the seed scripts.
  */
-export function reportConfigWarnings() {
-  const warnings = []
+export function assertEnv(required = ['MONGODB_URI', 'JWT_SECRET']) {
+  const problems = []
 
-  if (!isMailConfigured) {
-    warnings.push(
-      `MAIL_PROVIDER is "${env.mail.provider}" — submissions will be logged to the console, not emailed. Set MAIL_PROVIDER=smtp (with SMTP_*) or resend (with RESEND_API_KEY) to deliver mail.`
-    )
+  for (const key of required) {
+    if (!String(process.env[key] ?? '').trim()) problems.push(`${key} is not set`)
   }
 
-  if (!process.env.MAIL_TO) {
-    warnings.push(
-      `MAIL_TO is not set — falling back to ${env.mail.to.join(', ')}. Confirm the real recipient before launch (PRD B11.5).`
-    )
+  if (isProd && env.jwtSecret && env.jwtSecret.length < 32) {
+    problems.push('JWT_SECRET must be at least 32 characters in production')
   }
 
-  if (!isCaptchaEnabled) {
-    warnings.push(
-      'TURNSTILE_SECRET_KEY is not set — running with honeypot, timing and rate-limit protection only.'
-    )
+  if (!DateTime.local().setZone(env.timezone).isValid) {
+    problems.push(`APP_TIMEZONE "${env.timezone}" is not a valid IANA timezone (e.g. Asia/Kolkata)`)
   }
 
-  if (isProduction && warnings.length) {
-    warnings.forEach((warning) => console.warn(`[config] WARNING: ${warning}`))
-  } else if (warnings.length) {
-    warnings.forEach((warning) => console.warn(`[config] ${warning}`))
+  if (!['lax', 'strict', 'none'].includes(env.cookie.sameSite)) {
+    problems.push('COOKIE_SAMESITE must be lax, strict or none')
+  } else if (env.cookie.sameSite === 'none' && !env.cookie.secure) {
+    problems.push('COOKIE_SAMESITE=none only works over HTTPS — also set COOKIE_SECURE=true')
+  }
+
+  if (problems.length) {
+    const list = problems.map((problem) => `  • ${problem}`).join('\n')
+    throw new Error(`Configuration problem — fix backend/.env (see backend/.env.example):\n${list}`)
   }
 }

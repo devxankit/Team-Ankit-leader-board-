@@ -1,9 +1,6 @@
 import { ApiError } from '../utils/ApiError.js'
 
-/**
- * Catches any request that didn't match a route and forwards a 404 to the
- * centralised error handler.
- */
+/** Unknown /api routes get the standard JSON error envelope. */
 export function notFound(req, res, next) {
-  next(new ApiError(404, `Route not found — ${req.method} ${req.originalUrl}`))
+  next(ApiError.notFound(`No API route for ${req.method} ${req.originalUrl}`, 'ROUTE_NOT_FOUND'))
 }

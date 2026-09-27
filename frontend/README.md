@@ -1,72 +1,70 @@
-# Frontend — Vrushahi Group
+# TA frontend — web app
 
-React 19 + Vite 8, plain JavaScript (JSDoc for typing, no TypeScript), Tailwind
-CSS v4, React Router 7, Framer Motion, React Hook Form + Zod.
+React 19 + Vite + Tailwind CSS web app for **TA (Team Ankit)**, the team performance leaderboard.
+It talks to the API in [`../backend`](../backend/README.md).
+
+## Run it
+
+Start the backend first (`cd backend && npm run dev`), then:
 
 ```bash
+cd frontend
 npm install
-npm run dev      # http://localhost:5173
-npm run build
-npm run lint
-npm run smoke    # server-renders all 27 routes and checks page structure
+cp .env.example .env     # defaults work for local development
+npm run dev              # http://localhost:5173
 ```
 
-## Layout
+In development Vite proxies `/api` and `/socket.io` to the backend (`VITE_API_PROXY_TARGET`), so the session
+cookie and live updates work without any CORS setup.
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload |
+| `npm run build` | Production build in `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | oxlint |
+| `npm run format` | Prettier |
+
+## Environment (`.env`)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `VITE_API_URL` | `/api` | Keep `/api` unless the API is on another domain |
+| `VITE_SOCKET_URL` | same origin | Socket.io server, if it's on another domain |
+| `VITE_API_PROXY_TARGET` | `http://localhost:5000` | Where the dev server proxies API and socket traffic |
+| `VITE_PORT` | `5173` | Dev server port |
+
+## What's inside
+
+**For everyone**
+- **Leaderboard** (`/`): podium for the top 3 (#1 crowned in the centre), full standings with rank, ▲/▼ movement vs 7 days ago,
+  level badge, progress to the next level, points and reward/penalty counts. Your own row is highlighted.
+  Period filter: All time / This month / This week (weeks start Monday). Updates live over Socket.io.
+- **Latest activity**: the last 40 entries. Click any member (podium, row or feed) to open their drawer with rank,
+  points, counts, level and full history.
+- **My profile** (`/me`): your stats and history.
+- Light and dark mode, and a phone layout with a bottom tab bar.
+
+**Admin** (`/admin`)
+- **Give points**: pick people (or everyone), pick a rule (green rewards, red penalties) or a custom one-off, add a note, apply.
+- **Rules**: create, edit, archive and restore.
+- **Members**: add (with a generated temporary password), edit, reset password, deactivate/reactivate.
+- **Activity log**: every entry with filters (member, rule, type, status, dates) and **Reverse**.
+
+Members on a temporary password must choose their own at first sign-in. Anyone can change theirs from the account menu.
+
+## Structure
 
 ```
 src/
-  config/
-    site.js          all company facts in one place — phone, address, socials,
-                     map. Items marked TODO(B11) await client confirmation.
-    env.js           VITE_* access; nothing else reads import.meta.env
-  data/
-    businessUnits.js THE source of truth for the 15 divisions (PRD B4).
-                     Drives the home grid, mega-menu, drawer, footer, /group
-                     and every /group/:slug page.
-    aboutContent.js  About-page copy, verbatim from the legacy site
-    contractFarming.js
-    navigation.js    nav tree composed from the two above
-  components/
-    layout/          TopBar, Header, MegaMenu, MobileDrawer, PageHero, Footer,
-                     BackToTop, Logo
-    motion/          Reveal, StaggerGroup/Item, PageTransition, variants.js
-    ui/              Container, Button, Icon, Badge, SectionHeading, Prose,
-                     PlaceholderImage, ContentPendingNotice, SocialIcons
-    forms/           FloatingField, FileField, SubmitButton, FormStatus,
-                     HoneypotField, TurnstileWidget, ContactForm, CareerForm
-    home/            Hero, ValueProps, ExperienceBlock, BusinessUnitGrid/Card,
-                     CtaBand
-    seo/Seo.jsx      per-page title + meta
-  pages/  routes/  layouts/  hooks/  lib/  services/
+  pages/        Leaderboard, MyProfile, Login, ChangePassword, NotFound, admin/*
+  components/   ui/ (buttons, dialogs, fields…), layout/, leaderboard/, admin/
+  hooks/        useAuth, useTheme, useSocket, useBoard (leaderboard/activity/history), useAdmin, useNow
+  services/     axios instance + auth, board and admin API calls
+  context/      Auth, Theme and Socket providers
+  routes/       AppRoutes, RequireAuth, RequireAdmin
+  lib/          formatting, level styles, constants, query client
+  index.css     design tokens (light + dark) and Tailwind theme
 ```
 
-## Styling
-
-Tailwind **v4** — the theme lives in `src/index.css` inside an `@theme` block,
-not in a `tailwind.config.js` (v4 moved configuration into CSS). The brand
-palette from the legacy site (`#FF090F`, `#FF9900`, `#FF6600`, `#474747`,
-`#EEEEEE`) is seeded there, expanded into full ramps so there are shades with
-enough contrast for body text — the raw brand red only reaches 3.96:1 on white,
-so `brand-700` is the one to use for small text.
-
-## Motion
-
-Framer Motion throughout; GSAP was not needed. Reduced motion is handled in two
-places: `<MotionConfig reducedMotion="user">` in `App.jsx` strips transform and
-layout animations tree-wide, and a media query in `index.css` neutralises CSS
-keyframes and transitions. Components owning a continuous effect (hero Ken
-Burns, parallax) also check `useReducedMotion()` and skip it entirely.
-
-Animations are transform/opacity only, so they stay on the GPU.
-
-## Forms
-
-React Hook Form + Zod, posting to the Express API. `src/lib/schemas.js` mirrors
-`backend/src/validation/formSchemas.js` — they cannot share a module across
-packages, so a rule changed in one must be changed in the other. The server
-revalidates everything and is the authority; its `fieldErrors` response maps
-straight back onto the inputs.
-
-Spam protection is a honeypot plus a form-fill timing check, with Cloudflare
-Turnstile wired but dormant — set `VITE_TURNSTILE_SITE_KEY` (and the matching
-secret on the API) and the widget mounts itself.
+Level thresholds and names come from the API (`backend/src/config/gamification.js`). Only the colours live here, in `src/lib/levels.js`.
