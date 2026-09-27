@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Trophy, Users } from 'lucide-react'
+import { Gift, Trophy, Users } from 'lucide-react'
 import ActivityFeed from '@/components/leaderboard/ActivityFeed'
 import LevelRoad from '@/components/leaderboard/LevelRoad'
 import LiveIndicator from '@/components/leaderboard/LiveIndicator'
 import MemberDrawer from '@/components/leaderboard/MemberDrawer'
+import OutcomesSheet from '@/components/leaderboard/OutcomesSheet'
 import Podium from '@/components/leaderboard/Podium'
 import Standings from '@/components/leaderboard/Standings'
 import Button from '@/components/ui/Button'
@@ -44,6 +45,7 @@ export default function Leaderboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const period = PERIODS.includes(searchParams.get('period')) ? searchParams.get('period') : 'all'
   const [selectedId, setSelectedId] = useState(null)
+  const [showOutcomes, setShowOutcomes] = useState(false)
   const { data, isLoading, isError, refetch } = useLeaderboard(period)
 
   const rows = data?.rows ?? []
@@ -63,7 +65,12 @@ export default function Leaderboard() {
           </div>
           <p className="mt-1 text-sm text-muted">{rangeLabel(period, data?.range?.from)}</p>
         </div>
-        <SegmentedControl label="Period" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setShowOutcomes(true)}>
+            <Gift className="size-4 text-gold" /> What's at stake
+          </Button>
+          <SegmentedControl label="Period" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+        </div>
       </header>
 
       {isLoading ? (
@@ -122,6 +129,7 @@ export default function Leaderboard() {
       )}
 
       <MemberDrawer row={selectedRow} periodLabel={PERIOD_LABELS[period]} onClose={() => setSelectedId(null)} />
+      <OutcomesSheet open={showOutcomes} onClose={() => setShowOutcomes(false)} />
     </div>
   )
 }
