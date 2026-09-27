@@ -1,0 +1,203 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * Vrushahi Group design tokens
+ *
+ * Seeded from the legacy palette extracted in PRD A8 (#FF090F red, #FF9900
+ * amber, #FF6600 orange, #474747 charcoal, #EEEEEE surface) and expanded into
+ * full ramps so we get accessible text-weight shades the old site never had.
+ *
+ * Tailwind v4 keeps theme config in CSS, not tailwind.config.js — every custom
+ * property below becomes a utility (--color-brand-500 -> bg-brand-500 etc.).
+ * ------------------------------------------------------------------------- */
+@theme {
+  /* Brand red — the primary accent. #FF090F only clears 3.96:1 on white, so it
+     is reserved for large text, fills and UI chrome; brand-700 is the shade to
+     use for body-size text on light backgrounds. */
+  --color-brand-50: #fff1f1;
+  --color-brand-100: #ffe0e0;
+  --color-brand-200: #ffc5c6;
+  --color-brand-300: #ff9c9e;
+  --color-brand-400: #ff5257;
+  --color-brand-500: #ff090f;
+  --color-brand-600: #e00007;
+  --color-brand-700: #bc0006;
+  --color-brand-800: #9b0710;
+  --color-brand-900: #800c13;
+
+  /* Secondary accent — legacy link + active-nav colour. */
+  --color-amber-brand-50: #fff8eb;
+  --color-amber-brand-100: #ffebc7;
+  --color-amber-brand-200: #ffd68a;
+  --color-amber-brand-300: #ffbb4d;
+  --color-amber-brand-400: #ffa524;
+  --color-amber-brand-500: #ff9900;
+  --color-amber-brand-600: #e27700;
+  --color-amber-brand-700: #bb5302;
+  --color-amber-brand-800: #984008;
+  --color-amber-brand-900: #7c360b;
+
+  /* Legacy sub-nav hover orange, kept for gradients between red and amber. */
+  --color-flame: #ff6600;
+
+  /* Neutral ramp built around the legacy charcoal #474747 and surface #EEEEEE. */
+  --color-ink-50: #f7f7f7;
+  --color-ink-100: #eeeeee;
+  --color-ink-200: #d7d7d7;
+  --color-ink-300: #b8b8b8;
+  --color-ink-400: #8a8a8a;
+  --color-ink-500: #6b6b6b;
+  --color-ink-600: #474747;
+  --color-ink-700: #373737;
+  --color-ink-800: #262626;
+  --color-ink-900: #171717;
+  --color-ink-950: #0e0e0e;
+
+  /* Form + banner states (legacy success/error banners). */
+  --color-success: #00b44b;
+  --color-success-soft: #e6f7ee;
+  --color-danger: #e53935;
+  --color-danger-soft: #fdecea;
+
+  /* Typography — display grotesk over a neutral body sans, replacing the
+     legacy Verdana stack. */
+  --font-display: 'Sora', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Modern type scale — larger, tighter headings than the legacy template. */
+  --text-display-sm: 2.25rem;
+  --text-display-sm--line-height: 1.1;
+  --text-display-sm--letter-spacing: -0.02em;
+  --text-display-md: 3rem;
+  --text-display-md--line-height: 1.05;
+  --text-display-md--letter-spacing: -0.025em;
+  --text-display-lg: 3.75rem;
+  --text-display-lg--line-height: 1;
+  --text-display-lg--letter-spacing: -0.03em;
+  --text-display-xl: 4.75rem;
+  --text-display-xl--line-height: 0.98;
+  --text-display-xl--letter-spacing: -0.035em;
+
+  /* Soft depth — the card/shadow system B12 asks for. */
+  --shadow-card: 0 1px 2px rgb(23 23 23 / 0.04), 0 4px 16px rgb(23 23 23 / 0.06);
+  --shadow-card-hover: 0 2px 4px rgb(23 23 23 / 0.05), 0 16px 40px rgb(23 23 23 / 0.12);
+  --shadow-glow: 0 12px 32px rgb(255 9 15 / 0.28);
+
+  --radius-4xl: 2rem;
+
+  /* Ambient motion used by the hero. */
+  --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
+  --animate-float-cue: float-cue 2s ease-in-out infinite;
+
+  @keyframes ken-burns {
+    from {
+      transform: scale(1) translate3d(0, 0, 0);
+    }
+    to {
+      transform: scale(1.12) translate3d(-1.5%, -1.5%, 0);
+    }
+  }
+
+  @keyframes float-cue {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    50% {
+      transform: translateY(8px);
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-white);
+    color: var(--color-ink-600);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--color-ink-900);
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+    text-align: justify;
+    text-justify: inter-word;
+  }
+
+  /* Visible keyboard focus everywhere — the legacy site had none. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-500);
+    color: var(--color-white);
+  }
+}
+
+@layer utilities {
+  /* Grid overlay that keeps hero copy readable over any placeholder image. */
+  .hero-scrim {
+    background-image: linear-gradient(
+      to right,
+      rgb(14 14 14 / 0.88) 0%,
+      rgb(14 14 14 / 0.72) 45%,
+      rgb(14 14 14 / 0.35) 100%
+    );
+  }
+
+  .brand-gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-brand-500),
+      var(--color-flame) 55%,
+      var(--color-amber-brand-500)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion (PRD B12)
+ *
+ * Framer Motion is gated in JS via useReducedMotion(); this is the CSS-side
+ * safety net that also neutralises keyframe animations, transitions and smooth
+ * scrolling for anything not driven by Framer Motion.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
